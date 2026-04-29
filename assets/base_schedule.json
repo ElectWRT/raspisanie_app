@@ -1,0 +1,18 @@
+[
+  {
+    "groupName": "СА-2124",
+    "dayOfWeek": 1,
+    "pairNumber": 1,
+    "subject": "Компьютерные сети",
+    "teacher": "Иванов И.И.",
+    "room": "301"
+  },
+  {
+    "groupName": "СА-2124",
+    "dayOfWeek": 1,
+    "pairNumber": 2,
+    "subject": "ОС и среды",
+    "teacher": "Петров П.П.",
+    "room": "305"
+  }
+]
