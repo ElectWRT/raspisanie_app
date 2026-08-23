@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Нужен для загрузки замен с сайта и из облака. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
-        android:label="raspisanie_app"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

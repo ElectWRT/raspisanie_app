@@ -1,34 +1,45 @@
-import '../../domain/entities/substitution.dart';
+import 'package:drift/drift.dart';
+import 'package:equatable/equatable.dart';
 
-class SubstitutionModel extends SubstitutionEntity {
-  final int lessonNumber;
+import '../../../../core/database/database.dart';
+
+/// Одна строка замены, вытащенная из документа. Ещё не привязана к дате —
+/// дату определяет репозиторий (из документа или из выбранного дня).
+class SubstitutionModel extends Equatable {
+  final String groupName;
+  final int pairNumber;
+  final String? subgroup;
+  final String subject;
+  final String teacher;
+  final String room;
+  final bool isCancelled;
+  final String? note;
 
   const SubstitutionModel({
-    required String groupName,
-    required this.lessonNumber,
-    required String subject,
-    required String teacher,
-    required String room,
-  }) : super(
-          id: 0, // Will be set by DB
-          groupName: groupName,
-          period: '', // Getter period will handle this
-          subject: subject,
-          teacher: teacher,
-          room: room,
-        );
+    required this.groupName,
+    required this.pairNumber,
+    this.subgroup,
+    this.subject = '',
+    this.teacher = '',
+    this.room = '',
+    this.isCancelled = false,
+    this.note,
+  });
+
+  SubstitutionsCompanion toCompanion(DateTime date) =>
+      SubstitutionsCompanion.insert(
+        date: DateTime(date.year, date.month, date.day),
+        groupName: groupName,
+        pairNumber: pairNumber,
+        subgroup: Value(subgroup),
+        subject: Value(subject),
+        teacher: Value(teacher),
+        room: Value(room),
+        isCancelled: Value(isCancelled),
+        note: Value(note),
+      );
 
   @override
-  String get period => lessonNumber.toString();
-
-  factory SubstitutionModel.fromRow(List<String> cells) {
-    // Expected order: Группа, Пара, Предмет, Преподаватель, Ауд
-    return SubstitutionModel(
-      groupName: cells[0].trim(),
-      lessonNumber: int.tryParse(cells[1].trim()) ?? 0,
-      subject: cells[2].trim(),
-      teacher: cells[3].trim(),
-      room: cells[4].trim(),
-    );
-  }
+  List<Object?> get props =>
+      [groupName, pairNumber, subgroup, subject, teacher, room, isCancelled, note];
 }

@@ -1,17 +1,85 @@
-# raspisanie_app
+# Расписание с автозаменами
 
-A new Flutter project.
+Flutter-приложение, которое показывает расписание занятий и **само подтягивает
+замены**: находит на сайте учебного заведения ссылку на документ с заменами,
+скачивает `.docx` из облака Mail.ru, разбирает таблицу и накладывает замены
+поверх основного расписания.
 
-## Getting Started
+Сервера у приложения нет — всё работает локально на устройстве.
 
-This project is a starting point for a Flutter application.
+## Как это устроено
 
-A few resources to get you started if this is your first Flutter project:
+```
+сайт заведения ──► ссылка на cloud.mail.ru ──► .docx ──► разбор таблицы ──► SQLite
+                                                                              │
+основное расписание (.md, импорт вручную) ──────────────────► SQLite ─────────┤
+                                                                              ▼
+                                                            расписание дня с заменами
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+* **Основное расписание** импортируется вручную — Markdown-файлом.
+  Формат описан в [`docs/SCHEDULE_FORMAT.md`](docs/SCHEDULE_FORMAT.md),
+  пример — в [`samples/schedule_example.md`](samples/schedule_example.md).
+  В приложении есть готовый промпт, которым удобно превратить фото или таблицу
+  расписания в нужный Markdown.
+* **Замены** обновляются по кнопке (и по желанию — при запуске). Приложение
+  ищет на странице ссылки со словом «замены», выбирает подходящую по дате,
+  скачивает документ и разбирает его. Если сайт недоступен или разметка
+  поменялась — можно задать прямую ссылку или выбрать `.docx` с устройства.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Возможности
+
+* Расписание на день с переключением по дням и неделям.
+* Числитель / знаменатель — с настройкой, какая неделя считается числителем.
+* Подгруппы: можно скрыть пары чужой подгруппы.
+* Замены подсвечиваются и показывают, что стояло в расписании раньше.
+* Снятые пары («группа гуляет») и добавленные пары помечаются отдельно.
+* Несколько групп в одной базе, переключение в шапке.
+* Экран «Диагностика разбора» — показывает, что именно приложение прочитало
+  в документе. Нужен, чтобы подстроить парсер под реальный формат.
+* Светлая и тёмная тема.
+
+## Структура
+
+```
+lib/
+  core/
+    database/      таблицы и запросы drift (Lessons, Substitutions, AppMeta)
+    settings/      настройки в SharedPreferences
+    utils/         недели, чётность, форматирование дат
+    error/         исключения и Failure
+  features/
+    schedule/      основное расписание: импорт .md, слияние с заменами, UI
+    substitutions/ загрузка и разбор .docx с заменами, UI
+```
+
+Логика слияния замен вынесена в чистую функцию
+[`schedule_merger.dart`](lib/features/schedule/domain/schedule_merger.dart) —
+она покрыта тестами и не зависит от базы.
+
+## Запуск
+
+```bash
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs
+flutter run
+```
+
+Кодогенерация нужна после любых изменений в `lib/core/database/tables.dart`.
+
+## Тесты
+
+```bash
+flutter test
+```
+
+Покрыты: разбор Markdown-расписания, разбор `.docx` (тесты собирают документ
+на лету), слияние замен с расписанием, вычисление чётности недели и
+распознавание дат в тексте ссылок.
+
+## Настройка под своё заведение
+
+Адрес страницы с заменами задаётся в **Настройках** — по умолчанию стоит
+`khamk.ru`. Если структура документа завуча отличается от ожидаемой,
+загрузите `.docx` вручную и откройте **Диагностику разбора**: там видно,
+какие колонки распознались, а какие строки парсер не понял.

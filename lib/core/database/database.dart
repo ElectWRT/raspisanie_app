@@ -1,126 +1,168 @@
 import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:rxdart/rxdart.dart';
+import 'package:path_provider/path_provider.dart';
+
+import 'tables.dart';
+
+export 'tables.dart';
 
 part 'database.g.dart';
 
-class BaseSchedules extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get groupName => text()();
-  IntColumn get dayOfWeek => integer()(); // 1-7
-  IntColumn get pairNumber => integer()();
-  TextColumn get subject => text()();
-  TextColumn get teacher => text()();
-  TextColumn get room => text()();
-}
-
-class Substitutions extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  DateTimeColumn get date => dateTime()();
-  TextColumn get groupName => text()();
-  IntColumn get pairNumber => integer()();
-  TextColumn get subject => text()();
-  TextColumn get teacher => text()();
-  TextColumn get room => text()();
-}
-
-@DriftDatabase(tables: [BaseSchedules, Substitutions])
+@DriftDatabase(tables: [Lessons, Substitutions, AppMeta])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+
+  /// Конструктор для тестов — база в памяти.
+  AppDatabase.forTesting(super.e);
 
   @override
   int get schemaVersion => 1;
 
-  // New CRUD methods for Repository
-  Future<List<Substitution>> getAllSubstitutions() => select(substitutions).get();
-  Stream<List<Substitution>> watchAllSubstitutions() => select(substitutions).watch();
-  Future<void> clearAllSubstitutions() => delete(substitutions).go();
-  
-  Future<void> insertSubstitutions(List<SubstitutionsCompanion> items) async {
-    await batch((batch) {
-      batch.insertAll(substitutions, items, mode: InsertMode.insertOrReplace);
+  // ---------------------------------------------------------------- Lessons
+
+  /// Пары базового расписания на конкретный день недели.
+  /// Возвращает пары, помеченные [WeekType.every], и пары нужной чётности.
+  Stream<List<Lesson>> watchLessons({
+    required String groupName,
+    required int dayOfWeek,
+    required WeekType weekType,
+  }) {
+    final query = select(lessons)
+      ..where((t) =>
+          t.groupName.equals(groupName) &
+          t.dayOfWeek.equals(dayOfWeek) &
+          (t.weekType.equalsValue(WeekType.every) |
+              t.weekType.equalsValue(weekType)))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.pairNumber),
+        (t) => OrderingTerm(expression: t.subgroup),
+      ]);
+    return query.watch();
+  }
+
+  /// Все группы, для которых загружено базовое расписание.
+  Future<List<String>> getGroupNames() async {
+    final query = selectOnly(lessons, distinct: true)
+      ..addColumns([lessons.groupName])
+      ..orderBy([OrderingTerm(expression: lessons.groupName)]);
+    final rows = await query.get();
+    return rows.map((r) => r.read(lessons.groupName)!).toList();
+  }
+
+  Stream<List<String>> watchGroupNames() {
+    final query = selectOnly(lessons, distinct: true)
+      ..addColumns([lessons.groupName])
+      ..orderBy([OrderingTerm(expression: lessons.groupName)]);
+    return query.watch().map(
+          (rows) => rows.map((r) => r.read(lessons.groupName)!).toList(),
+        );
+  }
+
+  Future<int> countLessons() async {
+    final query = selectOnly(lessons)..addColumns([lessons.id.count()]);
+    final row = await query.getSingle();
+    return row.read(lessons.id.count()) ?? 0;
+  }
+
+  /// Полностью заменяет базовое расписание для перечисленных групп.
+  /// Пары групп, которых нет в [items], не трогаются — это позволяет
+  /// импортировать файлы по одной группе, не стирая остальные.
+  Future<void> replaceLessons(List<LessonsCompanion> items) async {
+    final groups = items.map((e) => e.groupName.value).toSet();
+    await transaction(() async {
+      for (final group in groups) {
+        await (delete(lessons)..where((t) => t.groupName.equals(group))).go();
+      }
+      await batch((batch) => batch.insertAll(lessons, items));
     });
   }
 
-  // Unified Stream: Merges base schedule with substitutions
-  Stream<List<UnifiedScheduleItem>> watchUnifiedSchedule(String group, int dayOfWeek, DateTime date) {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    
-    // We fetch base schedule and substitutions for the date
-    final baseQuery = select(baseSchedules)..where((t) => t.groupName.equals(group) & t.dayOfWeek.equals(dayOfWeek));
-    final subQuery = select(substitutions)..where((t) => t.groupName.equals(group) & t.date.equals(startOfDay));
+  Future<void> clearLessons() => delete(lessons).go();
 
-    return Rx.combineLatest2(baseQuery.watch(), subQuery.watch(), (baseList, subList) {
-      final List<UnifiedScheduleItem> result = [];
-      
-      // Map subs by pair number for quick lookup
-      final subsMap = {for (var s in subList) s.pairNumber: s};
+  // ---------------------------------------------------------- Substitutions
 
-      for (var base in baseList) {
-        final sub = subsMap[base.pairNumber];
-        if (sub != null) {
-          result.add(UnifiedScheduleItem(
-            pairNumber: base.pairNumber,
-            subject: sub.subject,
-            teacher: sub.teacher,
-            room: sub.room,
-            isSubstitution: true,
-            originalSubject: base.subject,
-          ));
-          subsMap.remove(base.pairNumber);
-        } else {
-          result.add(UnifiedScheduleItem(
-            pairNumber: base.pairNumber,
-            subject: base.subject,
-            teacher: base.teacher,
-            room: base.room,
-            isSubstitution: false,
-          ));
-        }
-      }
+  Stream<List<Substitution>> watchSubstitutionsFor({
+    required String groupName,
+    required DateTime date,
+  }) {
+    final day = DateTime(date.year, date.month, date.day);
+    final query = select(substitutions)
+      ..where((t) => t.groupName.equals(groupName) & t.date.equals(day))
+      ..orderBy([(t) => OrderingTerm(expression: t.pairNumber)]);
+    return query.watch();
+  }
 
-      // Add substitutions that don't have a base pair (e.g. extra pair)
-      for (var sub in subsMap.values) {
-        result.add(UnifiedScheduleItem(
-          pairNumber: sub.pairNumber,
-          subject: sub.subject,
-          teacher: sub.teacher,
-          room: sub.room,
-          isSubstitution: true,
-        ));
-      }
+  /// Все замены на дату — для экрана «замены по всем группам».
+  Stream<List<Substitution>> watchSubstitutionsOnDate(DateTime date) {
+    final day = DateTime(date.year, date.month, date.day);
+    final query = select(substitutions)
+      ..where((t) => t.date.equals(day))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.groupName),
+        (t) => OrderingTerm(expression: t.pairNumber),
+      ]);
+    return query.watch();
+  }
 
-      result.sort((a, b) => a.pairNumber.compareTo(b.pairNumber));
-      return result;
+  Future<List<Substitution>> getSubstitutionsOnDate(DateTime date) {
+    final day = DateTime(date.year, date.month, date.day);
+    return (select(substitutions)..where((t) => t.date.equals(day))).get();
+  }
+
+  /// Перезаписывает замены на конкретную дату — старые за этот день удаляются.
+  /// Замены за другие дни сохраняются (история + расписание на завтра).
+  Future<void> replaceSubstitutionsForDate(
+    DateTime date,
+    List<SubstitutionsCompanion> items,
+  ) async {
+    final day = DateTime(date.year, date.month, date.day);
+    await transaction(() async {
+      await (delete(substitutions)..where((t) => t.date.equals(day))).go();
+      await batch(
+        (batch) => batch.insertAll(
+          substitutions,
+          items,
+          mode: InsertMode.insertOrReplace,
+        ),
+      );
     });
   }
-}
 
-class UnifiedScheduleItem {
-  final int pairNumber;
-  final String subject;
-  final String teacher;
-  final String room;
-  final bool isSubstitution;
-  final String? originalSubject;
+  /// Удаляет замены старше [days] дней, чтобы база не росла бесконечно.
+  Future<int> purgeOldSubstitutions({int days = 30}) {
+    final cutoff = DateTime.now().subtract(Duration(days: days));
+    final day = DateTime(cutoff.year, cutoff.month, cutoff.day);
+    return (delete(substitutions)..where((t) => t.date.isSmallerThanValue(day)))
+        .go();
+  }
 
-  UnifiedScheduleItem({
-    required this.pairNumber,
-    required this.subject,
-    required this.teacher,
-    required this.room,
-    required this.isSubstitution,
-    this.originalSubject,
-  });
+  Future<void> clearSubstitutions() => delete(substitutions).go();
+
+  // ---------------------------------------------------------------- AppMeta
+
+  Future<String?> getMeta(String key) async {
+    final row = await (select(appMeta)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    return row?.value;
+  }
+
+  Future<void> setMeta(String key, String value) => into(appMeta).insertOnConflictUpdate(
+        AppMetaCompanion.insert(key: key, value: value),
+      );
+
+  Stream<String?> watchMeta(String key) =>
+      (select(appMeta)..where((t) => t.key.equals(key)))
+          .watchSingleOrNull()
+          .map((row) => row?.value);
 }
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'app.sqlite'));
+    final file = File(p.join(dbFolder.path, 'raspisanie.sqlite'));
     return NativeDatabase.createInBackground(file);
   });
 }

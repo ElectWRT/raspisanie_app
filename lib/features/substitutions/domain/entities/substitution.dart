@@ -1,22 +1,35 @@
 import 'package:equatable/equatable.dart';
 
-class SubstitutionEntity extends Equatable {
-  final int id;
-  final String groupName;
-  final String period;
-  final String subject;
-  final String teacher;
-  final String room;
+/// Итог обновления замен — что скачали, за какое число и что не поняли.
+class RefreshReport extends Equatable {
+  /// Дата, на которую относятся замены.
+  final DateTime date;
 
-  const SubstitutionEntity({
-    required this.id,
-    required this.groupName,
-    required this.period,
-    required this.subject,
-    required this.teacher,
-    required this.room,
+  /// Сколько строк записано в базу.
+  final int importedCount;
+
+  /// Откуда взяли документ (заголовок ссылки или «ручная ссылка»).
+  final String source;
+
+  /// Предупреждения парсера — строки, которые он не разобрал.
+  final List<String> warnings;
+
+  /// Текст документа для диагностики, если парсер ошибся.
+  final String textPreview;
+
+  /// Дата не нашлась в документе и была выбрана по ссылке/по умолчанию.
+  final bool dateWasGuessed;
+
+  const RefreshReport({
+    required this.date,
+    required this.importedCount,
+    required this.source,
+    this.warnings = const [],
+    this.textPreview = '',
+    this.dateWasGuessed = false,
   });
 
   @override
-  List<Object?> get props => [id, groupName, period, subject, teacher, room];
+  List<Object?> get props =>
+      [date, importedCount, source, warnings, textPreview, dateWasGuessed];
 }
