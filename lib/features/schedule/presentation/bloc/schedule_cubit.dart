@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/notifications/reminder_scheduler.dart';
 import '../../../../core/settings/app_settings.dart';
 import '../../../../core/utils/week_utils.dart';
+import '../../domain/entities/bell_schedule.dart';
 import '../../domain/entities/schedule_slot.dart';
 import '../../domain/repositories/schedule_repository.dart';
 
@@ -13,7 +15,10 @@ class ScheduleState extends Equatable {
   final String? group;
   final List<String> availableGroups;
   final DaySchedule? day;
-  final List<BellTime> bells;
+  final List<BellSchedule> bellSchedules;
+
+  /// Дни недели (1..7) видимой недели, на которые есть замены.
+  final Set<int> substitutionWeekdays;
 
   /// Базовое расписание ещё не импортировано — показываем экран-подсказку.
   final bool needsImport;
@@ -24,7 +29,8 @@ class ScheduleState extends Equatable {
     this.group,
     this.availableGroups = const [],
     this.day,
-    this.bells = const [],
+    this.bellSchedules = const [],
+    this.substitutionWeekdays = const {},
     this.needsImport = false,
     this.isLoading = true,
   });
@@ -36,7 +42,8 @@ class ScheduleState extends Equatable {
     List<String>? availableGroups,
     DaySchedule? day,
     bool clearDay = false,
-    List<BellTime>? bells,
+    List<BellSchedule>? bellSchedules,
+    Set<int>? substitutionWeekdays,
     bool? needsImport,
     bool? isLoading,
   }) {
@@ -45,33 +52,46 @@ class ScheduleState extends Equatable {
       group: clearGroup ? null : (group ?? this.group),
       availableGroups: availableGroups ?? this.availableGroups,
       day: clearDay ? null : (day ?? this.day),
-      bells: bells ?? this.bells,
+      bellSchedules: bellSchedules ?? this.bellSchedules,
+      substitutionWeekdays: substitutionWeekdays ?? this.substitutionWeekdays,
       needsImport: needsImport ?? this.needsImport,
       isLoading: isLoading ?? this.isLoading,
     );
   }
 
-  BellTime? bellFor(int pairNumber) =>
-      bells.where((b) => b.pairNumber == pairNumber).firstOrNull;
+  /// Набор звонков, действующий в выбранный день.
+  BellSchedule? get activeBells =>
+      bellScheduleForWeekday(bellSchedules, date.weekday);
+
+  BellTime? bellFor(int pairNumber) => activeBells?.timeFor(pairNumber);
 
   @override
-  List<Object?> get props =>
-      [date, group, availableGroups, day, bells, needsImport, isLoading];
-}
-
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
+  List<Object?> get props => [
+        date,
+        group,
+        availableGroups,
+        day,
+        bellSchedules,
+        substitutionWeekdays,
+        needsImport,
+        isLoading,
+      ];
 }
 
 class ScheduleCubit extends Cubit<ScheduleState> {
-  ScheduleCubit({required this.repository, required this.settings})
-      : super(ScheduleState(date: WeekUtils.dayKey(DateTime.now())));
+  ScheduleCubit({
+    required this.repository,
+    required this.settings,
+    required this.reminders,
+  }) : super(ScheduleState(date: WeekUtils.dayKey(DateTime.now())));
 
   final ScheduleRepository repository;
   final AppSettings settings;
+  final ReminderScheduler reminders;
 
   StreamSubscription<DaySchedule>? _daySubscription;
   StreamSubscription<List<String>>? _groupsSubscription;
+  StreamSubscription<Set<int>>? _weekSubscription;
 
   Future<void> init() async {
     _groupsSubscription = repository.watchGroups().listen((groups) async {
@@ -93,9 +113,10 @@ class ScheduleCubit extends Cubit<ScheduleState> {
         isLoading: false,
       ));
       _resubscribe();
+      unawaited(reminders.refresh());
     });
 
-    emit(state.copyWith(bells: await repository.getBells()));
+    emit(state.copyWith(bellSchedules: await repository.getBellSchedules()));
   }
 
   void selectDate(DateTime date) {
@@ -112,12 +133,17 @@ class ScheduleCubit extends Cubit<ScheduleState> {
     await settings.setSelectedGroup(group);
     emit(state.copyWith(group: group, clearDay: true));
     _resubscribe();
+    unawaited(reminders.refresh());
   }
 
   /// Вызывается после импорта расписания и после смены настроек.
   Future<void> reload() async {
-    emit(state.copyWith(bells: await repository.getBells(), clearDay: true));
+    emit(state.copyWith(
+      bellSchedules: await repository.getBellSchedules(),
+      clearDay: true,
+    ));
     _resubscribe();
+    await reminders.refresh();
   }
 
   void _resubscribe() {
@@ -133,12 +159,21 @@ class ScheduleCubit extends Cubit<ScheduleState> {
           invertWeekParity: settings.invertWeekParity,
         )
         .listen((day) => emit(state.copyWith(day: day, isLoading: false)));
+
+    _weekSubscription?.cancel();
+    _weekSubscription = repository
+        .watchSubstitutionWeekdays(
+          groupName: group,
+          weekStart: WeekUtils.startOfWeek(state.date),
+        )
+        .listen((days) => emit(state.copyWith(substitutionWeekdays: days)));
   }
 
   @override
   Future<void> close() {
     _daySubscription?.cancel();
     _groupsSubscription?.cancel();
+    _weekSubscription?.cancel();
     return super.close();
   }
 }

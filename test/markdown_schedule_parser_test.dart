@@ -84,11 +84,54 @@ void main() {
 1. Сети
 ''');
 
-    expect(result.bells, hasLength(2));
-    expect(result.bells.first.start, '08:30');
-    expect(result.bells.first.end, '10:00');
-    expect(result.bells.last.start, '10:10');
-    expect(result.bells.last.end, '11:40');
+    expect(result.bellSchedules, hasLength(1));
+    final times = result.bellSchedules.single.times;
+    expect(times, hasLength(2));
+    expect(times.first.start, '08:30');
+    expect(times.first.end, '10:00');
+    expect(times.last.start, '10:10');
+    expect(times.last.end, '11:40');
+    expect(result.bellSchedules.single.isDefault, isTrue,
+        reason: 'без указания дней набор считается основным');
+  });
+
+  test('несколько наборов звонков с привязкой к дням', () {
+    final result = parser.parse('''
+# Звонки (пн-пт)
+1. 08:30 - 10:00
+2. 10:10 - 11:40
+
+# Звонки (сб)
+1. 08:30 - 09:30
+2. 09:40 - 10:40
+
+# СА-2124
+## Пн
+1. Сети
+''');
+
+    expect(result.bellSchedules, hasLength(2));
+
+    final weekdays = result.bellSchedules.first;
+    expect(weekdays.days, {1, 2, 3, 4, 5});
+    expect(weekdays.times.first.start, '08:30');
+
+    final saturday = result.bellSchedules.last;
+    expect(saturday.days, {6});
+    expect(saturday.times.last.end, '10:40');
+  });
+
+  test('день недели в заголовке звонков пишется и словом', () {
+    final result = parser.parse('''
+# Расписание звонков на субботу
+1. 08:30 - 09:30
+
+# СА-2124
+## Пн
+1. Сети
+''');
+
+    expect(result.bellSchedules.single.days, {6});
   });
 
   test('строки Markdown-таблицы тоже разбираются', () {

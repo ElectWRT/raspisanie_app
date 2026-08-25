@@ -23,4 +23,7 @@ abstract class SubstitutionsRepository {
 
   /// Когда замены обновлялись в последний раз.
   Stream<DateTime?> watchLastUpdated();
+
+  /// Удаляет все загруженные замены.
+  Future<void> clearAll();
 }

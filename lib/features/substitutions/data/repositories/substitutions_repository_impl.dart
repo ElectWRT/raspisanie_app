@@ -144,6 +144,9 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
       database.watchSubstitutionsOnDate(date);
 
   @override
+  Future<void> clearAll() => database.clearSubstitutions();
+
+  @override
   Stream<DateTime?> watchLastUpdated() => database
       .watchMeta(_lastUpdatedKey)
       .map((raw) => raw == null ? null : DateTime.tryParse(raw));

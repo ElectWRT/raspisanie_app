@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 
 import 'core/database/database.dart';
+import 'core/notifications/notification_service.dart';
+import 'core/notifications/reminder_scheduler.dart';
 import 'core/settings/app_settings.dart';
 import 'features/schedule/data/datasources/markdown_schedule_parser.dart';
 import 'features/schedule/data/repositories/schedule_repository_impl.dart';
@@ -46,5 +48,16 @@ Future<void> setupDependencies() async {
         database: getIt<AppDatabase>(),
         settings: getIt<AppSettings>(),
       ),
+    )
+    ..registerSingleton<NotificationService>(NotificationService.create())
+    ..registerLazySingleton<ReminderScheduler>(
+      () => ReminderScheduler(
+        repository: getIt<ScheduleRepository>(),
+        settings: getIt<AppSettings>(),
+        notifications: getIt<NotificationService>(),
+      ),
     );
+
+  // Часовые пояса и канал уведомлений готовим до первого показа экрана.
+  await getIt<NotificationService>().init();
 }

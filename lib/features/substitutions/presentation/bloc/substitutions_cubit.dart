@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/notifications/reminder_scheduler.dart';
 import '../../domain/entities/substitution.dart';
 import '../../domain/repositories/substitutions_repository.dart';
 
@@ -44,13 +45,15 @@ class SubstitutionsState extends Equatable {
 }
 
 class SubstitutionsCubit extends Cubit<SubstitutionsState> {
-  SubstitutionsCubit(this.repository) : super(const SubstitutionsState()) {
+  SubstitutionsCubit(this.repository, this.reminders)
+      : super(const SubstitutionsState()) {
     _lastUpdatedSubscription = repository.watchLastUpdated().listen(
           (value) => emit(state.copyWith(lastUpdated: value)),
         );
   }
 
   final SubstitutionsRepository repository;
+  final ReminderScheduler reminders;
   StreamSubscription<DateTime?>? _lastUpdatedSubscription;
 
   Future<void> refresh({DateTime? targetDate}) async {
@@ -58,6 +61,8 @@ class SubstitutionsCubit extends Cubit<SubstitutionsState> {
     emit(state.copyWith(status: RefreshStatus.loading, clearError: true));
 
     final outcome = await repository.refresh(targetDate: targetDate);
+    // Замены могли сдвинуть пары — перепланируем напоминания.
+    if (outcome.isRight()) await reminders.refresh();
     outcome.fold(
       (failure) => emit(state.copyWith(
         status: RefreshStatus.failure,
@@ -75,6 +80,7 @@ class SubstitutionsCubit extends Cubit<SubstitutionsState> {
     emit(state.copyWith(status: RefreshStatus.loading, clearError: true));
 
     final outcome = await repository.importDocx(bytes, source: source);
+    if (outcome.isRight()) await reminders.refresh();
     outcome.fold(
       (failure) => emit(state.copyWith(
         status: RefreshStatus.failure,

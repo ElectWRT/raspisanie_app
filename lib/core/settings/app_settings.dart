@@ -15,6 +15,16 @@ class AppSettings extends ChangeNotifier {
   static const _kSourcePageUrl = 'source_page_url';
   static const _kManualLink = 'manual_substitutions_link';
   static const _kAutoRefresh = 'auto_refresh_on_launch';
+  static const _kAccent = 'accent_id';
+  static const _kDynamicColor = 'use_dynamic_color';
+  static const _kAmoled = 'amoled_dark';
+  static const _kTextScale = 'text_scale';
+  static const _kCompact = 'compact_cards';
+  static const _kShowWeekends = 'show_weekends';
+  static const _kHighlightCurrent = 'highlight_current_lesson';
+  static const _kNotifications = 'notifications_enabled';
+  static const _kReminderMinutes = 'reminder_minutes';
+  static const _kExactAlarms = 'exact_alarms';
 
   /// Страница учебного заведения, где завуч публикует ссылки на замены.
   static const defaultSourcePageUrl =
@@ -37,6 +47,38 @@ class AppSettings extends ChangeNotifier {
         'dark' => ThemeMode.dark,
         _ => ThemeMode.system,
       };
+
+  /// Идентификатор акцентного цвета из [AppAccents].
+  String get accentId => _prefs.getString(_kAccent) ?? 'blue';
+
+  /// Брать цвета из обоев системы (Android 12+).
+  bool get useDynamicColor => _prefs.getBool(_kDynamicColor) ?? false;
+
+  /// Чисто чёрный фон в тёмной теме — для OLED-экранов.
+  bool get amoledDark => _prefs.getBool(_kAmoled) ?? false;
+
+  /// Масштаб текста, 0.85–1.4.
+  double get textScale => _prefs.getDouble(_kTextScale) ?? 1.0;
+
+  /// Компактные карточки пар — на экран влезает больше.
+  bool get compactCards => _prefs.getBool(_kCompact) ?? false;
+
+  /// Показывать субботу и воскресенье в переключателе дней.
+  bool get showWeekends => _prefs.getBool(_kShowWeekends) ?? true;
+
+  /// Подсвечивать пару, которая идёт прямо сейчас.
+  bool get highlightCurrentLesson =>
+      _prefs.getBool(_kHighlightCurrent) ?? true;
+
+  /// Напоминать о начале пары.
+  bool get notificationsEnabled => _prefs.getBool(_kNotifications) ?? false;
+
+  /// За сколько минут до звонка приходит напоминание.
+  int get reminderMinutes => _prefs.getInt(_kReminderMinutes) ?? 15;
+
+  /// Точное время срабатывания. Требует отдельного разрешения Android;
+  /// без него уведомления приходят приблизительно.
+  bool get exactAlarms => _prefs.getBool(_kExactAlarms) ?? false;
 
   String get sourcePageUrl =>
       _prefs.getString(_kSourcePageUrl) ?? defaultSourcePageUrl;
@@ -98,6 +140,71 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> setAutoRefreshOnLaunch(bool value) async {
     await _prefs.setBool(_kAutoRefresh, value);
+    notifyListeners();
+  }
+
+  Future<void> setAccentId(String value) async {
+    await _prefs.setString(_kAccent, value);
+    notifyListeners();
+  }
+
+  Future<void> setUseDynamicColor(bool value) async {
+    await _prefs.setBool(_kDynamicColor, value);
+    notifyListeners();
+  }
+
+  Future<void> setAmoledDark(bool value) async {
+    await _prefs.setBool(_kAmoled, value);
+    notifyListeners();
+  }
+
+  Future<void> setTextScale(double value) async {
+    await _prefs.setDouble(_kTextScale, value.clamp(0.85, 1.4));
+    notifyListeners();
+  }
+
+  Future<void> setCompactCards(bool value) async {
+    await _prefs.setBool(_kCompact, value);
+    notifyListeners();
+  }
+
+  Future<void> setShowWeekends(bool value) async {
+    await _prefs.setBool(_kShowWeekends, value);
+    notifyListeners();
+  }
+
+  Future<void> setHighlightCurrentLesson(bool value) async {
+    await _prefs.setBool(_kHighlightCurrent, value);
+    notifyListeners();
+  }
+
+  Future<void> setNotificationsEnabled(bool value) async {
+    await _prefs.setBool(_kNotifications, value);
+    notifyListeners();
+  }
+
+  Future<void> setReminderMinutes(int value) async {
+    await _prefs.setInt(_kReminderMinutes, value);
+    notifyListeners();
+  }
+
+  Future<void> setExactAlarms(bool value) async {
+    await _prefs.setBool(_kExactAlarms, value);
+    notifyListeners();
+  }
+
+  /// Сбрасывает только внешний вид, не трогая расписание и источники.
+  Future<void> resetAppearance() async {
+    await Future.wait([
+      _prefs.remove(_kThemeMode),
+      _prefs.remove(_kAccent),
+      _prefs.remove(_kDynamicColor),
+      _prefs.remove(_kAmoled),
+      _prefs.remove(_kTextScale),
+      _prefs.remove(_kCompact),
+      _prefs.remove(_kShowWeekends),
+      _prefs.remove(_kHighlightCurrent),
+    ]);
     notifyListeners();
   }
 }

@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/settings/app_settings.dart';
 import '../../../../core/utils/week_utils.dart';
+import '../../../../di.dart';
 import '../../../settings/presentation/settings_page.dart';
 import '../../../substitutions/presentation/bloc/substitutions_cubit.dart';
 import '../../../substitutions/presentation/pages/substitutions_page.dart';
+import '../../domain/entities/bell_schedule.dart';
+import '../../domain/entities/schedule_slot.dart';
 import '../bloc/schedule_cubit.dart';
 import '../widgets/day_switcher.dart';
 import '../widgets/lesson_card.dart';
@@ -15,6 +21,8 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settings = getIt<AppSettings>();
+
     return BlocListener<SubstitutionsCubit, SubstitutionsState>(
       listenWhen: (previous, current) => previous.status != current.status,
       listener: _onRefreshStatusChanged,
@@ -52,9 +60,11 @@ class HomePage extends StatelessWidget {
                 DaySwitcher(
                   date: state.date,
                   onSelect: context.read<ScheduleCubit>().selectDate,
+                  showWeekends: settings.showWeekends,
+                  substitutionDays: state.substitutionWeekdays,
                 ),
                 const _RefreshBanner(),
-                Expanded(child: _DayBody(state: state)),
+                Expanded(child: _DayBody(state: state, settings: settings)),
               ],
             ),
             floatingActionButton: const _RefreshButton(),
@@ -88,7 +98,6 @@ class HomePage extends StatelessWidget {
     } else if (state.status == RefreshStatus.failure && state.error != null) {
       messenger.showSnackBar(SnackBar(
         content: Text(state.error!),
-        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 6),
       ));
     }
@@ -103,32 +112,146 @@ class HomePage extends StatelessWidget {
   }
 }
 
-class _DayBody extends StatelessWidget {
-  const _DayBody({required this.state});
+/// Список пар на день. Держит таймер, чтобы отметка «сейчас» не устаревала.
+class _DayBody extends StatefulWidget {
+  const _DayBody({required this.state, required this.settings});
 
   final ScheduleState state;
+  final AppSettings settings;
+
+  @override
+  State<_DayBody> createState() => _DayBodyState();
+}
+
+class _DayBodyState extends State<_DayBody> {
+  Timer? _ticker;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => setState(() => _now = DateTime.now()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final state = widget.state;
+    final settings = widget.settings;
     final day = state.day;
+
     if (day == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (day.isEmpty) return _EmptyDayView(date: day.date);
 
-    return RefreshIndicator(
-      onRefresh: () =>
-          context.read<SubstitutionsCubit>().refresh(targetDate: state.date),
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-        itemCount: day.slots.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          final slot = day.slots[index];
-          return LessonCard(slot: slot, bell: state.bellFor(slot.pairNumber));
-        },
+    final content = day.isEmpty
+        ? _EmptyDayView(date: day.date)
+        : _buildList(day, settings);
+
+    // Горизонтальный свайп листает дни — вертикальная прокрутка не мешает.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity.abs() < 200) return;
+        context.read<ScheduleCubit>().shiftDay(velocity < 0 ? 1 : -1);
+      },
+      child: RefreshIndicator(
+        onRefresh: () =>
+            context.read<SubstitutionsCubit>().refresh(targetDate: state.date),
+        child: content,
       ),
     );
+  }
+
+  Widget _buildList(DaySchedule day, AppSettings settings) {
+    final isToday = WeekUtils.dayKey(_now) == day.date;
+    final compact = settings.compactCards;
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+      itemCount: day.slots.length + 1,
+      separatorBuilder: (_, __) => SizedBox(height: compact ? 8 : 10),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return _DaySummary(day: day, bells: widget.state.activeBells);
+        }
+
+        final slot = day.slots[index - 1];
+        final bell = widget.state.bellFor(slot.pairNumber);
+        final highlight = settings.highlightCurrentLesson && isToday;
+
+        return LessonCard(
+          slot: slot,
+          bell: bell,
+          compact: compact,
+          isNow: highlight && (bell?.isNow(_now, day.date) ?? false),
+          isPast: highlight && (bell?.isPast(_now, day.date) ?? false),
+        );
+      },
+    );
+  }
+}
+
+/// Строка-сводка над списком: сколько пар, во сколько начало и конец.
+class _DaySummary extends StatelessWidget {
+  const _DaySummary({required this.day, required this.bells});
+
+
+  final DaySchedule day;
+  final BellSchedule? bells;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    final numbers = day.slots.map((s) => s.pairNumber).toSet().toList()..sort();
+    final first = bells?.timeFor(numbers.first);
+    final last = bells?.timeFor(numbers.last);
+
+    final parts = <String>[
+      _plural(numbers.length),
+      if (first != null && last != null) '${first.start} – ${last.end}',
+      if (day.substitutionCount > 0) 'замен: ${day.substitutionCount}',
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 2),
+      child: Row(
+        children: [
+          Icon(Icons.schedule_outlined, size: 15, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              parts.join('  ·  '),
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ),
+          if (day.substitutionCount > 0)
+            Icon(Icons.swap_horiz, size: 15, color: scheme.tertiary),
+        ],
+      ),
+    );
+  }
+
+  static String _plural(int count) {
+    final mod10 = count % 10;
+    final mod100 = count % 100;
+    if (mod10 == 1 && mod100 != 11) return '$count пара';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return '$count пары';
+    }
+    return '$count пар';
   }
 }
 
@@ -159,8 +282,7 @@ class _GroupPicker extends StatelessWidget {
                 Text(group, style: theme.textTheme.titleMedium),
                 Text(
                   WeekUtils.weekTypeLabel(
-                    state.day?.weekType ??
-                        WeekUtils.weekTypeFor(state.date),
+                    state.day?.weekType ?? WeekUtils.weekTypeFor(state.date),
                   ),
                   style: theme.textTheme.labelSmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -180,19 +302,40 @@ class _GroupPicker extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) => SafeArea(
-        child: RadioGroup<String>(
-          groupValue: state.group,
-          onChanged: (value) {
-            if (value != null) cubit.selectGroup(value);
-            Navigator.of(sheetContext).pop();
-          },
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final group in state.availableGroups)
-                RadioListTile<String>(value: group, title: Text(group)),
-            ],
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.groups_outlined, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Группа',
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: RadioGroup<String>(
+                groupValue: state.group,
+                onChanged: (value) {
+                  if (value != null) cubit.selectGroup(value);
+                  Navigator.of(sheetContext).pop();
+                },
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final group in state.availableGroups)
+                      RadioListTile<String>(value: group, title: Text(group)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
@@ -253,31 +396,29 @@ class _EmptyDayView extends StatelessWidget {
     final theme = Theme.of(context);
     final isWeekend = date.weekday >= 6;
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isWeekend ? Icons.weekend_outlined : Icons.event_available_outlined,
-              size: 56,
-              color: theme.colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isWeekend ? 'Выходной' : 'В этот день пар нет',
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              WeekUtils.formatFullDate(date),
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ],
+    // ListView, а не Center — иначе RefreshIndicator не сработает.
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 64),
+      children: [
+        Icon(
+          isWeekend ? Icons.weekend_outlined : Icons.event_available_outlined,
+          size: 56,
+          color: theme.colorScheme.outline,
         ),
-      ),
+        const SizedBox(height: 16),
+        Text(
+          isWeekend ? 'Выходной' : 'В этот день пар нет',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          WeekUtils.formatFullDate(date),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ],
     );
   }
 }
@@ -301,7 +442,8 @@ class _NoScheduleView extends StatelessWidget {
                   size: 64, color: theme.colorScheme.primary),
               const SizedBox(height: 20),
               Text('Расписание ещё не загружено',
-                  style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
+                  style: theme.textTheme.titleLarge,
+                  textAlign: TextAlign.center),
               const SizedBox(height: 8),
               Text(
                 'Импортируйте основное расписание в формате Markdown — '

@@ -111,6 +111,30 @@ class BellTime extends Equatable {
         'end': end,
       };
 
+  /// Превращает "08:30" в момент времени того же дня, что и [day].
+  DateTime? _moment(DateTime day, String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    return DateTime(day.year, day.month, day.day, hour, minute);
+  }
+
+  /// Идёт ли пара прямо сейчас. [day] — день, к которому относится пара.
+  bool isNow(DateTime now, DateTime day) {
+    final from = _moment(day, start);
+    final to = _moment(day, end);
+    if (from == null || to == null) return false;
+    return !now.isBefore(from) && now.isBefore(to);
+  }
+
+  /// Пара уже закончилась.
+  bool isPast(DateTime now, DateTime day) {
+    final to = _moment(day, end);
+    return to != null && now.isAfter(to);
+  }
+
   @override
   List<Object?> get props => [pairNumber, start, end];
 }

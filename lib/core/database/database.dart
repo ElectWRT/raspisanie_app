@@ -107,6 +107,24 @@ class AppDatabase extends _$AppDatabase {
     return query.watch();
   }
 
+  /// Даты в промежутке, на которые у группы есть замены.
+  /// Нужны, чтобы помечать дни в переключателе недели.
+  Stream<Set<DateTime>> watchSubstitutionDatesBetween({
+    required String groupName,
+    required DateTime from,
+    required DateTime to,
+  }) {
+    final query = selectOnly(substitutions, distinct: true)
+      ..addColumns([substitutions.date])
+      ..where(substitutions.groupName.equals(groupName) &
+          substitutions.date.isBiggerOrEqualValue(from) &
+          substitutions.date.isSmallerOrEqualValue(to));
+
+    return query.watch().map(
+          (rows) => rows.map((r) => r.read(substitutions.date)!).toSet(),
+        );
+  }
+
   Future<List<Substitution>> getSubstitutionsOnDate(DateTime date) {
     final day = DateTime(date.year, date.month, date.day);
     return (select(substitutions)..where((t) => t.date.equals(day))).get();

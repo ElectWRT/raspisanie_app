@@ -218,8 +218,8 @@ class _PreviewBox extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 4),
               child: Text('${entry.key} — ${entry.value} пар'),
             ),
-          if (result.bells.isNotEmpty)
-            Text('Звонки — ${result.bells.length} пар'),
+          for (final schedule in result.bellSchedules)
+            Text('${schedule.name} — ${schedule.times.length} пар'),
           if (warnings.isNotEmpty) ...[
             const Divider(height: 24),
             Row(

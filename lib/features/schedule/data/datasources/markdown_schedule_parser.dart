@@ -2,12 +2,15 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/database.dart';
 import '../../../../core/error/exceptions.dart';
+import '../../domain/entities/bell_schedule.dart';
 import '../../domain/entities/schedule_slot.dart';
 
 /// Результат разбора Markdown-файла с расписанием.
 class ScheduleImportResult {
   final List<LessonsCompanion> lessons;
-  final List<BellTime> bells;
+
+  /// Наборы звонков. Их может быть несколько — например, отдельный на субботу.
+  final List<BellSchedule> bellSchedules;
 
   /// Сколько пар распознано по каждой группе — показываем в предпросмотре.
   final Map<String, int> lessonsPerGroup;
@@ -17,7 +20,7 @@ class ScheduleImportResult {
 
   const ScheduleImportResult({
     required this.lessons,
-    required this.bells,
+    required this.bellSchedules,
     required this.lessonsPerGroup,
     required this.warnings,
   });
@@ -93,13 +96,35 @@ class MarkdownScheduleParser {
     'вск': 7,
   };
 
+  /// Основы названий дней — чтобы понимать падежи: «на субботу», «со среды».
+  static const Map<String, int> _dayStems = {
+    'понедельник': 1,
+    'вторник': 2,
+    'сред': 3,
+    'четверг': 4,
+    'пятниц': 5,
+    'суббот': 6,
+    'воскресен': 7,
+  };
+
+  /// День недели по одному слову: точное совпадение, затем по основе.
+  static int? _dayFromToken(String token) {
+    final exact = _dayTokens[token];
+    if (exact != null) return exact;
+    for (final entry in _dayStems.entries) {
+      if (token.startsWith(entry.key)) return entry.value;
+    }
+    return null;
+  }
+
   ScheduleImportResult parse(String source) {
     if (source.trim().isEmpty) {
       throw ParsingException('Файл пустой.');
     }
 
     final lessons = <LessonsCompanion>[];
-    final bells = <BellTime>[];
+    final bellSchedules = <_BellDraft>[];
+    _BellDraft? currentBells;
     final perGroup = <String, int>{};
     final warnings = <String>[];
 
@@ -132,6 +157,11 @@ class MarkdownScheduleParser {
         if (_isBellsHeading(normalized)) {
           inBellsSection = true;
           currentDay = null;
+          currentBells = _BellDraft(
+            name: _bellSectionName(title),
+            days: _parseDaySpec(normalized),
+          );
+          bellSchedules.add(currentBells);
           continue;
         }
 
@@ -161,7 +191,7 @@ class MarkdownScheduleParser {
       if (inBellsSection) {
         final bell = _bellLine.firstMatch(line);
         if (bell != null) {
-          bells.add(BellTime(
+          currentBells?.times.add(BellTime(
             pairNumber: int.parse(bell.group(1)!),
             start: _normalizeTime(bell.group(2)!),
             end: _normalizeTime(bell.group(3)!),
@@ -236,16 +266,60 @@ class MarkdownScheduleParser {
       );
     }
 
-    bells.sort((a, b) => a.pairNumber.compareTo(b.pairNumber));
+    final schedules = bellSchedules
+        .where((draft) => draft.times.isNotEmpty)
+        .map((draft) => draft.build())
+        .toList();
+
     return ScheduleImportResult(
       lessons: lessons,
-      bells: bells,
+      bellSchedules: schedules,
       lessonsPerGroup: perGroup,
       warnings: warnings,
     );
   }
 
   // ---------------------------------------------------------------- helpers
+
+  /// Название набора звонков — то, что написано в заголовке.
+  static String _bellSectionName(String title) =>
+      title.trim().isEmpty ? 'Звонки' : title.trim();
+
+  /// Достаёт дни недели из заголовка звонков:
+  /// «Звонки (сб)», «Звонки пн-пт», «Расписание звонков на субботу».
+  /// Пустое множество — набор по умолчанию.
+  static Set<int> _parseDaySpec(String normalized) {
+    final spec = normalized
+        .replaceAll(RegExp(r'расписание\s+звонк\w*'), ' ')
+        .replaceAll(RegExp(r'звонк\w*'), ' ')
+        .replaceAll(RegExp(r'время пар'), ' ')
+        .replaceAll(RegExp(r'(?<![а-я])на(?![а-я])'), ' ')
+        .replaceAll(RegExp(r'[()\[\]]'), ' ')
+        .trim();
+    if (spec.isEmpty) return const {};
+
+    final days = <int>{};
+
+    // Диапазон вида «пн-пт».
+    for (final match
+        in RegExp(r'([а-я]+)\s*[-–—]\s*([а-я]+)').allMatches(spec)) {
+      final from = _dayFromToken(match.group(1)!);
+      final to = _dayFromToken(match.group(2)!);
+      if (from != null && to != null && from <= to) {
+        for (var day = from; day <= to; day++) {
+          days.add(day);
+        }
+      }
+    }
+
+    // Перечисление вида «сб», «пн, ср, пт».
+    for (final token in spec.split(RegExp(r'[\s,;/]+'))) {
+      final day = _dayFromToken(token.trim());
+      if (day != null) days.add(day);
+    }
+
+    return days;
+  }
 
   static String _normalize(String value) => value
       .toLowerCase()
@@ -264,7 +338,7 @@ class MarkdownScheduleParser {
     if (direct != null) return direct;
     // «Понедельник (числитель)», «Пн, 1 сентября» и т.п.
     final firstWord = normalized.split(RegExp(r'[\s(,]')).first;
-    return _dayTokens[firstWord];
+    return _dayFromToken(firstWord);
   }
 
   static WeekType _weekTypeFor(String marker) {
@@ -289,5 +363,20 @@ class MarkdownScheduleParser {
     if (cells.isEmpty) return line;
     final first = cells.removeAt(0);
     return '$first. ${cells.join(' | ')}';
+  }
+}
+
+/// Накопитель звонков одной секции — времена дописываются построчно.
+class _BellDraft {
+  _BellDraft({required this.name, required this.days});
+
+  final String name;
+  final Set<int> days;
+  final List<BellTime> times = [];
+
+  BellSchedule build() {
+    final sorted = times.toList()
+      ..sort((a, b) => a.pairNumber.compareTo(b.pairNumber));
+    return BellSchedule(name: name, days: days, times: sorted);
   }
 }

@@ -2,14 +2,21 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/notifications/notification_service.dart';
+import '../../../core/notifications/reminder_scheduler.dart';
 import '../../../core/settings/app_settings.dart';
 import '../../../core/utils/week_utils.dart';
 import '../../../di.dart';
+import '../../schedule/domain/repositories/schedule_repository.dart';
 import '../../schedule/presentation/bloc/schedule_cubit.dart';
+import '../../schedule/presentation/pages/bells_page.dart';
 import '../../schedule/presentation/pages/import_schedule_page.dart';
 import '../../schedule/presentation/pages/schedule_format_page.dart';
+import '../../substitutions/domain/repositories/substitutions_repository.dart';
 import '../../substitutions/presentation/bloc/substitutions_cubit.dart';
 import '../../substitutions/presentation/pages/parse_diagnostics_page.dart';
+import 'about_page.dart';
+import 'widgets/settings_widgets.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -20,6 +27,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final AppSettings _settings = getIt<AppSettings>();
+
   late final TextEditingController _pageUrlController =
       TextEditingController(text: _settings.sourcePageUrl);
   late final TextEditingController _manualLinkController =
@@ -32,191 +40,523 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
+  /// Перерисовывает настройки и главный экран после смены значения.
+  Future<void> _applyAndReload(Future<void> Function() change) async {
+    final scheduleCubit = context.read<ScheduleCubit>();
+    await change();
+    if (mounted) setState(() {});
+    await scheduleCubit.reload();
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Настройки')),
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 32),
+        children: [
+          ..._scheduleSection(),
+          ..._notificationsSection(),
+          ..._appearanceSection(),
+          ..._sourceSection(),
+          ..._dataSection(),
+        ],
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------ расписание
+
+  List<Widget> _scheduleSection() {
     final scheduleState = context.watch<ScheduleCubit>().state;
     final currentWeek = WeekUtils.weekTypeFor(
       DateTime.now(),
       invert: _settings.invertWeekParity,
     );
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Настройки')),
-      body: ListView(
-        children: [
-          const _SectionHeader('Расписание'),
-          if (scheduleState.availableGroups.isNotEmpty)
-            ListTile(
-              leading: const Icon(Icons.groups_outlined),
-              title: const Text('Группа'),
-              subtitle: Text(scheduleState.group ?? 'не выбрана'),
-              trailing: DropdownButton<String>(
-                value: scheduleState.group,
-                underline: const SizedBox.shrink(),
-                items: [
-                  for (final group in scheduleState.availableGroups)
-                    DropdownMenuItem(value: group, child: Text(group)),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    context.read<ScheduleCubit>().selectGroup(value);
-                  }
-                },
-              ),
-            ),
-          ListTile(
-            leading: const Icon(Icons.call_split),
-            title: const Text('Подгруппа'),
-            subtitle: const Text('Пары чужой подгруппы будут скрыты'),
-            trailing: SegmentedButton<String>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: '', label: Text('Все')),
-                ButtonSegment(value: '1', label: Text('1')),
-                ButtonSegment(value: '2', label: Text('2')),
-              ],
-              selected: {_settings.subgroup ?? ''},
-              onSelectionChanged: (selection) async {
-                final scheduleCubit = context.read<ScheduleCubit>();
-                final value = selection.first;
-                await _settings.setSubgroup(value.isEmpty ? null : value);
-                if (mounted) setState(() {});
-                await scheduleCubit.reload();
-              },
-            ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.swap_vert),
-            title: const Text('Поменять числитель и знаменатель'),
-            subtitle: Text(
-              'Сейчас эта неделя — ${WeekUtils.weekTypeLabel(currentWeek).toLowerCase()}',
-            ),
-            value: _settings.invertWeekParity,
-            onChanged: (value) async {
-              final scheduleCubit = context.read<ScheduleCubit>();
-              await _settings.setInvertWeekParity(value);
-              if (mounted) setState(() {});
-              await scheduleCubit.reload();
+    return [
+      const SectionHeader('Расписание', icon: Icons.calendar_today_outlined),
+      if (scheduleState.availableGroups.isNotEmpty)
+        ListTile(
+          leading: const Icon(Icons.groups_outlined),
+          title: const Text('Группа'),
+          subtitle: Text(scheduleState.group ?? 'не выбрана'),
+          trailing: DropdownButton<String>(
+            value: scheduleState.group,
+            underline: const SizedBox.shrink(),
+            items: [
+              for (final group in scheduleState.availableGroups)
+                DropdownMenuItem(value: group, child: Text(group)),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                context.read<ScheduleCubit>().selectGroup(value);
+              }
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.upload_file_outlined),
-            title: const Text('Импортировать расписание (.md)'),
-            subtitle: const Text('Перезапишет пары групп из файла'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () async {
-              final cubit = context.read<ScheduleCubit>();
-              await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ImportSchedulePage()),
+        ),
+      ListTile(
+        leading: const Icon(Icons.call_split),
+        title: const Text('Подгруппа'),
+        subtitle: const Text('Пары чужой подгруппы будут скрыты'),
+        trailing: SegmentedButton<String>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: '', label: Text('Все')),
+            ButtonSegment(value: '1', label: Text('1')),
+            ButtonSegment(value: '2', label: Text('2')),
+          ],
+          selected: {_settings.subgroup ?? ''},
+          onSelectionChanged: (selection) => _applyAndReload(() {
+            final value = selection.first;
+            return _settings.setSubgroup(value.isEmpty ? null : value);
+          }),
+        ),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.swap_vert),
+        title: const Text('Поменять числитель и знаменатель'),
+        subtitle: Text(
+          'Сейчас эта неделя — '
+          '${WeekUtils.weekTypeLabel(currentWeek).toLowerCase()}',
+        ),
+        value: _settings.invertWeekParity,
+        onChanged: (value) =>
+            _applyAndReload(() => _settings.setInvertWeekParity(value)),
+      ),
+      ListTile(
+        leading: const Icon(Icons.upload_file_outlined),
+        title: const Text('Импортировать расписание (.md)'),
+        subtitle: const Text('Перезапишет пары групп из файла'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () async {
+          final cubit = context.read<ScheduleCubit>();
+          await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ImportSchedulePage()),
+          );
+          await cubit.reload();
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.schedule),
+        title: const Text('Расписание звонков'),
+        subtitle: const Text('Разные наборы для будней и субботы'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () async {
+          final cubit = context.read<ScheduleCubit>();
+          await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const BellsPage()),
+          );
+          await cubit.reload();
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.help_outline),
+        title: const Text('Формат файла и промпт'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ScheduleFormatPage()),
+        ),
+      ),
+    ];
+  }
+
+  // --------------------------------------------------------- уведомления
+
+  List<Widget> _notificationsSection() {
+    final enabled = _settings.notificationsEnabled;
+
+    return [
+      const SectionHeader('Уведомления', icon: Icons.notifications_outlined),
+      SwitchListTile(
+        secondary: const Icon(Icons.notifications_active_outlined),
+        title: const Text('Напоминать о парах'),
+        subtitle: const Text('Уведомление незадолго до звонка'),
+        value: enabled,
+        onChanged: _toggleNotifications,
+      ),
+      if (enabled) ...[
+        ListTile(
+          leading: const Icon(Icons.timer_outlined),
+          title: const Text('За сколько предупреждать'),
+          subtitle: SegmentedButton<int>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 5, label: Text('5 мин')),
+              ButtonSegment(value: 10, label: Text('10')),
+              ButtonSegment(value: 15, label: Text('15')),
+              ButtonSegment(value: 30, label: Text('30')),
+            ],
+            selected: {_settings.reminderMinutes},
+            onSelectionChanged: (selection) async {
+              await _settings.setReminderMinutes(selection.first);
+              if (mounted) setState(() {});
+              await getIt<ReminderScheduler>().refresh();
+            },
+          ),
+          isThreeLine: true,
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.alarm_on_outlined),
+          title: const Text('Точное время'),
+          subtitle: const Text(
+            'Без него Android может задержать уведомление на несколько минут. '
+            'Потребует отдельного разрешения.',
+          ),
+          isThreeLine: true,
+          value: _settings.exactAlarms,
+          onChanged: _toggleExactAlarms,
+        ),
+        ListTile(
+          leading: const Icon(Icons.fact_check_outlined),
+          title: const Text('Проверить напоминания'),
+          subtitle: const Text('Показать, сколько уже запланировано'),
+          onTap: _checkPending,
+        ),
+      ],
+    ];
+  }
+
+  Future<void> _toggleNotifications(bool value) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (value) {
+      final granted = await getIt<NotificationService>().requestPermission();
+      if (!granted) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text(
+            'Android не дал разрешение на уведомления. '
+            'Включите его в настройках телефона.',
+          ),
+        ));
+        return;
+      }
+    }
+
+    await _settings.setNotificationsEnabled(value);
+    if (mounted) setState(() {});
+
+    final count = await getIt<ReminderScheduler>().refresh();
+    if (!value) return;
+    messenger.showSnackBar(SnackBar(
+      content: Text(
+        count == 0
+            ? 'Напоминаний нет: проверьте, что заданы звонки и выбрана группа.'
+            : 'Запланировано напоминаний: $count',
+      ),
+    ));
+  }
+
+  Future<void> _toggleExactAlarms(bool value) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (value) {
+      final granted =
+          await getIt<NotificationService>().requestExactAlarmPermission();
+      if (!granted) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Разрешение на точные будильники не выдано.'),
+        ));
+        return;
+      }
+    }
+
+    await _settings.setExactAlarms(value);
+    if (mounted) setState(() {});
+    await getIt<ReminderScheduler>().refresh();
+  }
+
+  Future<void> _checkPending() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final pending = await getIt<NotificationService>().pending();
+    messenger.showSnackBar(SnackBar(
+      content: Text('Запланировано напоминаний: ${pending.length}'),
+    ));
+  }
+
+  // -------------------------------------------------------- внешний вид
+
+  List<Widget> _appearanceSection() {
+    final dynamicOn = _settings.useDynamicColor;
+
+    return [
+      const SectionHeader('Внешний вид', icon: Icons.palette_outlined),
+      ListTile(
+        leading: const Icon(Icons.brightness_6_outlined),
+        title: const Text('Тема'),
+        subtitle: SegmentedButton<ThemeMode>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(
+              value: ThemeMode.system,
+              label: Text('Как в ОС'),
+              icon: Icon(Icons.phone_android, size: 16),
+            ),
+            ButtonSegment(
+              value: ThemeMode.light,
+              label: Text('Светлая'),
+              icon: Icon(Icons.light_mode_outlined, size: 16),
+            ),
+            ButtonSegment(
+              value: ThemeMode.dark,
+              label: Text('Тёмная'),
+              icon: Icon(Icons.dark_mode_outlined, size: 16),
+            ),
+          ],
+          selected: {_settings.themeMode},
+          onSelectionChanged: (selection) async {
+            await _settings.setThemeMode(selection.first);
+            if (mounted) setState(() {});
+          },
+        ),
+        isThreeLine: true,
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.auto_awesome_outlined),
+        title: const Text('Цвета из обоев'),
+        subtitle: const Text('Material You, Android 12 и новее'),
+        value: dynamicOn,
+        onChanged: (value) async {
+          await _settings.setUseDynamicColor(value);
+          if (mounted) setState(() {});
+        },
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4),
+        child: Text(
+          dynamicOn ? 'Акцент задаётся обоями' : 'Акцент',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+      ),
+      AccentPicker(
+        selectedId: _settings.accentId,
+        enabled: !dynamicOn,
+        onSelect: (id) async {
+          await _settings.setAccentId(id);
+          if (mounted) setState(() {});
+        },
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.contrast),
+        title: const Text('Чёрный фон в тёмной теме'),
+        subtitle: const Text('Экономит батарею на OLED-экранах'),
+        value: _settings.amoledDark,
+        onChanged: (value) async {
+          await _settings.setAmoledDark(value);
+          if (mounted) setState(() {});
+        },
+      ),
+      TextScaleTile(
+        value: _settings.textScale,
+        onChanged: (value) async {
+          await _settings.setTextScale(value);
+          if (mounted) setState(() {});
+        },
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.density_small),
+        title: const Text('Компактные карточки'),
+        subtitle: const Text('На экран помещается больше пар'),
+        value: _settings.compactCards,
+        onChanged: (value) async {
+          await _settings.setCompactCards(value);
+          if (mounted) setState(() {});
+        },
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.weekend_outlined),
+        title: const Text('Показывать выходные'),
+        subtitle: const Text('Суббота и воскресенье в полосе дней'),
+        value: _settings.showWeekends,
+        onChanged: (value) async {
+          await _settings.setShowWeekends(value);
+          if (mounted) setState(() {});
+        },
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.play_circle_outline),
+        title: const Text('Выделять текущую пару'),
+        subtitle: const Text('Прошедшие пары приглушаются'),
+        value: _settings.highlightCurrentLesson,
+        onChanged: (value) async {
+          await _settings.setHighlightCurrentLesson(value);
+          if (mounted) setState(() {});
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.restart_alt),
+        title: const Text('Сбросить внешний вид'),
+        subtitle: const Text('Расписание и настройки замен не затрагиваются'),
+        onTap: () async {
+          await _settings.resetAppearance();
+          if (mounted) setState(() {});
+        },
+      ),
+    ];
+  }
+
+  // ------------------------------------------------------- источник замен
+
+  List<Widget> _sourceSection() {
+    return [
+      const SectionHeader('Источник замен', icon: Icons.cloud_outlined),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: TextField(
+          controller: _pageUrlController,
+          decoration: const InputDecoration(
+            labelText: 'Страница с заменами',
+            helperText: 'Здесь приложение ищет ссылки со словом «замены»',
+            helperMaxLines: 2,
+          ),
+          onSubmitted: _settings.setSourcePageUrl,
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: TextField(
+          controller: _manualLinkController,
+          decoration: const InputDecoration(
+            labelText: 'Прямая ссылка (необязательно)',
+            helperText: 'Если заполнено — сайт не разбирается, файл '
+                'качается сразу по этой ссылке',
+            helperMaxLines: 3,
+          ),
+          onSubmitted: _settings.setManualLink,
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.tonal(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              await _settings.setSourcePageUrl(_pageUrlController.text);
+              await _settings.setManualLink(_manualLinkController.text);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Сохранено')),
               );
-              await cubit.reload();
             },
+            child: const Text('Сохранить адреса'),
           ),
-          ListTile(
-            leading: const Icon(Icons.help_outline),
-            title: const Text('Формат файла и промпт'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ScheduleFormatPage()),
+        ),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.refresh),
+        title: const Text('Обновлять замены при запуске'),
+        value: _settings.autoRefreshOnLaunch,
+        onChanged: (value) async {
+          await _settings.setAutoRefreshOnLaunch(value);
+          if (mounted) setState(() {});
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.description_outlined),
+        title: const Text('Загрузить .docx вручную'),
+        subtitle: const Text('Когда сайт недоступен'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _pickDocx,
+      ),
+      ListTile(
+        leading: const Icon(Icons.bug_report_outlined),
+        title: const Text('Диагностика разбора'),
+        subtitle: const Text('Что приложение прочитало в документе'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BlocProvider.value(
+              value: context.read<SubstitutionsCubit>(),
+              child: const ParseDiagnosticsPage(),
             ),
           ),
+        ),
+      ),
+    ];
+  }
 
-          const _SectionHeader('Источник замен'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: TextField(
-              controller: _pageUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Страница с заменами',
-                helperText: 'Здесь приложение ищет ссылки со словом «замены»',
-                helperMaxLines: 2,
-              ),
-              onSubmitted: _settings.setSourcePageUrl,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _manualLinkController,
-              decoration: const InputDecoration(
-                labelText: 'Прямая ссылка (необязательно)',
-                helperText: 'Если заполнено — сайт не разбирается, файл '
-                    'качается сразу по этой ссылке',
-                helperMaxLines: 3,
-              ),
-              onSubmitted: _settings.setManualLink,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.tonal(
-                onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  await _settings.setSourcePageUrl(_pageUrlController.text);
-                  await _settings.setManualLink(_manualLinkController.text);
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('Сохранено')),
-                  );
-                },
-                child: const Text('Сохранить адреса'),
-              ),
-            ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.refresh),
-            title: const Text('Обновлять замены при запуске'),
-            value: _settings.autoRefreshOnLaunch,
-            onChanged: (value) async {
-              await _settings.setAutoRefreshOnLaunch(value);
-              if (mounted) setState(() {});
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.description_outlined),
-            title: const Text('Загрузить .docx вручную'),
-            subtitle: const Text('Когда сайт недоступен'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _pickDocx,
-          ),
-          ListTile(
-            leading: const Icon(Icons.bug_report_outlined),
-            title: const Text('Диагностика разбора'),
-            subtitle: const Text('Что приложение прочитало в документе'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => BlocProvider.value(
-                  value: context.read<SubstitutionsCubit>(),
-                  child: const ParseDiagnosticsPage(),
-                ),
-              ),
-            ),
-          ),
+  // -------------------------------------------------------------- данные
 
-          const _SectionHeader('Внешний вид'),
-          ListTile(
-            leading: const Icon(Icons.brightness_6_outlined),
-            title: const Text('Тема'),
-            trailing: SegmentedButton<ThemeMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: ThemeMode.system, label: Text('Как в ОС')),
-                ButtonSegment(value: ThemeMode.light, label: Text('Светлая')),
-                ButtonSegment(value: ThemeMode.dark, label: Text('Тёмная')),
-              ],
-              selected: {_settings.themeMode},
-              onSelectionChanged: (selection) async {
-                await _settings.setThemeMode(selection.first);
-                if (mounted) setState(() {});
-              },
-            ),
+  List<Widget> _dataSection() {
+    return [
+      const SectionHeader('Данные', icon: Icons.storage_outlined),
+      ListTile(
+        leading: const Icon(Icons.delete_sweep_outlined),
+        title: const Text('Удалить загруженные замены'),
+        subtitle: const Text('Основное расписание останется'),
+        onTap: () => _confirmAndRun(
+          title: 'Удалить замены?',
+          message: 'Все загруженные замены будут стёрты. '
+              'Основное расписание останется на месте.',
+          action: () => getIt<SubstitutionsRepository>().clearAll(),
+          doneMessage: 'Замены удалены',
+        ),
+      ),
+      ListTile(
+        leading: Icon(Icons.delete_forever_outlined,
+            color: Theme.of(context).colorScheme.error),
+        title: const Text('Удалить расписание'),
+        subtitle: const Text('Придётся импортировать .md заново'),
+        onTap: () => _confirmAndRun(
+          title: 'Удалить расписание?',
+          message: 'Будут удалены все импортированные пары. '
+              'Чтобы вернуть их, понадобится снова импортировать файл.',
+          action: () => getIt<ScheduleRepository>().clearSchedule(),
+          doneMessage: 'Расписание удалено',
+          destructive: true,
+        ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.info_outline),
+        title: const Text('О приложении'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AboutPage()),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _confirmAndRun({
+    required String title,
+    required String message,
+    required Future<void> Function() action,
+    required String doneMessage,
+    bool destructive = false,
+  }) async {
+    final scheduleCubit = context.read<ScheduleCubit>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Отмена'),
           ),
-          const SizedBox(height: 24),
+          FilledButton(
+            style: destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                  )
+                : null,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Удалить'),
+          ),
         ],
       ),
     );
+
+    if (confirmed != true) return;
+
+    await action();
+    await scheduleCubit.reload();
+    messenger.showSnackBar(SnackBar(content: Text(doneMessage)));
   }
 
   Future<void> _pickDocx() async {
@@ -238,27 +578,5 @@ class _SettingsPageState extends State<SettingsPage> {
     await context
         .read<SubstitutionsCubit>()
         .importDocx(bytes, source: file.name);
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-      child: Text(
-        title.toUpperCase(),
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
   }
 }
