@@ -72,28 +72,39 @@ class NotificationService {
   static const _channelDescription =
       'Уведомление незадолго до звонка на пару';
 
-  bool _ready = false;
+  /// Запоминаем сам Future, а не флаг: параллельные вызовы init()
+  /// должны ждать одну и ту же инициализацию, а не запускать вторую.
+  Future<void>? _initFuture;
 
   static NotificationService create() =>
       NotificationService(FlutterLocalNotificationsPlugin());
 
-  Future<void> init() async {
-    if (_ready) return;
+  Future<void> init() => _initFuture ??= _doInit();
 
+  Future<void> _doInit() async {
     tz_data.initializeTimeZones();
+
+    // Плагин может не ответить (нет сервиса, урезанная прошивка).
+    // Таймаут важнее точной зоны — иначе повиснет весь запуск.
     try {
-      final info = await FlutterTimezone.getLocalTimezone();
+      final info = await FlutterTimezone.getLocalTimezone()
+          .timeout(const Duration(seconds: 5));
       tz.setLocalLocation(tz.getLocation(info.identifier));
     } catch (_) {
-      // Не смогли определить зону — оставляем UTC, чтобы не падать.
+      // Оставляем UTC: напоминания сместятся, но приложение запустится.
     }
 
-    await _plugin.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      ),
-    );
-    _ready = true;
+    try {
+      await _plugin
+          .initialize(
+            settings: const InitializationSettings(
+              android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+            ),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Уведомления не заработают, но экран расписания должен открыться.
+    }
   }
 
   /// Спрашивает разрешение на уведомления (Android 13+).

@@ -48,8 +48,17 @@ class SubstitutionsCubit extends Cubit<SubstitutionsState> {
   SubstitutionsCubit(this.repository, this.reminders)
       : super(const SubstitutionsState()) {
     _lastUpdatedSubscription = repository.watchLastUpdated().listen(
-          (value) => emit(state.copyWith(lastUpdated: value)),
-        );
+      (value) => emit(state.copyWith(lastUpdated: value)),
+      // Без onError сбой базы всплыл бы необработанной ошибкой в никуда.
+      onError: (Object error) {
+        if (!isClosed) {
+          emit(state.copyWith(
+            status: RefreshStatus.failure,
+            error: 'Ошибка базы данных: $error',
+          ));
+        }
+      },
+    );
   }
 
   final SubstitutionsRepository repository;

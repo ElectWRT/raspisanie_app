@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/settings/app_settings.dart';
@@ -28,10 +29,11 @@ class HomePage extends StatelessWidget {
       listener: _onRefreshStatusChanged,
       child: BlocBuilder<ScheduleCubit, ScheduleState>(
         builder: (context, state) {
+          if (state.error != null) {
+            return _StartupErrorView(message: state.error!);
+          }
           if (state.isLoading && state.day == null && !state.needsImport) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
+            return const _StartupLoadingView();
           }
           if (state.needsImport) return const _NoScheduleView();
 
@@ -471,5 +473,132 @@ class _NoScheduleView extends StatelessWidget {
       MaterialPageRoute(builder: (_) => const ImportSchedulePage()),
     );
     await cubit.reload();
+  }
+}
+
+/// Загрузка при старте. Если она затянулась, показываем подсказку —
+/// молчаливая крутилка навсегда была бы худшим из вариантов.
+class _StartupLoadingView extends StatefulWidget {
+  const _StartupLoadingView();
+
+  @override
+  State<_StartupLoadingView> createState() => _StartupLoadingViewState();
+}
+
+class _StartupLoadingViewState extends State<_StartupLoadingView> {
+  Timer? _watchdog;
+  bool _slow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _watchdog = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _slow = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _watchdog?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              if (_slow) ...[
+                const SizedBox(height: 24),
+                Text(
+                  'Что-то долго',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'База данных не отвечает. Попробуйте перезапустить '
+                  'приложение. Если не поможет — переустановите его: '
+                  'загруженное расписание придётся импортировать заново.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.tonal(
+                  onPressed: () => context.read<ScheduleCubit>().retry(),
+                  child: const Text('Попробовать снова'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Показывает текст сбоя вместо бесконечной загрузки.
+class _StartupErrorView extends StatelessWidget {
+  const _StartupErrorView({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Не удалось запуститься')),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Icon(Icons.error_outline, size: 56, color: theme.colorScheme.error),
+          const SizedBox(height: 16),
+          Text(
+            'Ошибка при чтении данных',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SelectableText(
+              message,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(fontFamily: 'monospace'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: () => context.read<ScheduleCubit>().retry(),
+            child: const Text('Попробовать снова'),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: message));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Текст ошибки скопирован')),
+                );
+              }
+            },
+            icon: const Icon(Icons.copy, size: 18),
+            label: const Text('Скопировать ошибку'),
+          ),
+        ],
+      ),
+    );
   }
 }

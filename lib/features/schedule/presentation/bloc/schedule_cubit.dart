@@ -24,6 +24,9 @@ class ScheduleState extends Equatable {
   final bool needsImport;
   final bool isLoading;
 
+  /// Сбой при чтении базы. Показываем текст, а не вечную крутилку.
+  final String? error;
+
   const ScheduleState({
     required this.date,
     this.group,
@@ -33,6 +36,7 @@ class ScheduleState extends Equatable {
     this.substitutionWeekdays = const {},
     this.needsImport = false,
     this.isLoading = true,
+    this.error,
   });
 
   ScheduleState copyWith({
@@ -46,6 +50,8 @@ class ScheduleState extends Equatable {
     Set<int>? substitutionWeekdays,
     bool? needsImport,
     bool? isLoading,
+    String? error,
+    bool clearError = false,
   }) {
     return ScheduleState(
       date: date ?? this.date,
@@ -56,6 +62,7 @@ class ScheduleState extends Equatable {
       substitutionWeekdays: substitutionWeekdays ?? this.substitutionWeekdays,
       needsImport: needsImport ?? this.needsImport,
       isLoading: isLoading ?? this.isLoading,
+      error: clearError ? null : (error ?? this.error),
     );
   }
 
@@ -75,6 +82,7 @@ class ScheduleState extends Equatable {
         substitutionWeekdays,
         needsImport,
         isLoading,
+        error,
       ];
 }
 
@@ -114,9 +122,26 @@ class ScheduleCubit extends Cubit<ScheduleState> {
       ));
       _resubscribe();
       unawaited(reminders.refresh());
-    });
+    }, onError: _onStreamError);
 
-    emit(state.copyWith(bellSchedules: await repository.getBellSchedules()));
+    try {
+      emit(state.copyWith(bellSchedules: await repository.getBellSchedules()));
+    } catch (e) {
+      _onStreamError(e);
+    }
+  }
+
+  /// Любая ошибка чтения базы должна попасть на экран, а не подвесить его.
+  void _onStreamError(Object error) {
+    if (isClosed) return;
+    emit(state.copyWith(isLoading: false, error: error.toString()));
+  }
+
+  /// Повторная попытка после ошибки.
+  Future<void> retry() async {
+    emit(state.copyWith(isLoading: true, clearError: true));
+    await _groupsSubscription?.cancel();
+    await init();
   }
 
   void selectDate(DateTime date) {
@@ -158,7 +183,10 @@ class ScheduleCubit extends Cubit<ScheduleState> {
           subgroup: settings.subgroup,
           invertWeekParity: settings.invertWeekParity,
         )
-        .listen((day) => emit(state.copyWith(day: day, isLoading: false)));
+        .listen(
+          (day) => emit(state.copyWith(day: day, isLoading: false)),
+          onError: _onStreamError,
+        );
 
     _weekSubscription?.cancel();
     _weekSubscription = repository
@@ -166,7 +194,10 @@ class ScheduleCubit extends Cubit<ScheduleState> {
           groupName: group,
           weekStart: WeekUtils.startOfWeek(state.date),
         )
-        .listen((days) => emit(state.copyWith(substitutionWeekdays: days)));
+        .listen(
+          (days) => emit(state.copyWith(substitutionWeekdays: days)),
+          onError: _onStreamError,
+        );
   }
 
   @override

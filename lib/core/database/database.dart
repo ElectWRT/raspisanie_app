@@ -181,6 +181,11 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'raspisanie.sqlite'));
-    return NativeDatabase.createInBackground(file);
+
+    // Намеренно НЕ createInBackground: на части устройств фоновый изолят
+    // drift не поднимается — база молча не открывается, приложение висит
+    // на экране загрузки без единого исключения. Объёмы здесь крошечные
+    // (сотни строк), так что выигрыш от отдельного изолята не стоит риска.
+    return NativeDatabase(file);
   });
 }

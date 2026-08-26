@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 
@@ -58,6 +60,8 @@ Future<void> setupDependencies() async {
       ),
     );
 
-  // Часовые пояса и канал уведомлений готовим до первого показа экрана.
-  await getIt<NotificationService>().init();
+  // Инициализацию уведомлений намеренно НЕ ждём: если плагин зависнет,
+  // приложение всё равно должно открыться. Всё, что шлёт уведомления,
+  // само вызывает init() и дождётся его.
+  unawaited(getIt<NotificationService>().init());
 }
