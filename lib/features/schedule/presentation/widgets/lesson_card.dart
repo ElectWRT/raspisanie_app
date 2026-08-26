@@ -12,6 +12,7 @@ class LessonCard extends StatelessWidget {
     this.compact = false,
     this.isNow = false,
     this.isPast = false,
+    this.homeworkCount = 0,
   });
 
   final ScheduleSlot slot;
@@ -25,6 +26,9 @@ class LessonCard extends StatelessWidget {
 
   /// Пара уже закончилась — гасим её, чтобы взгляд цеплялся за актуальное.
   final bool isPast;
+
+  /// Сколько незакрытых заданий по этому предмету.
+  final int homeworkCount;
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +112,24 @@ class LessonCard extends StatelessWidget {
                       compact: compact,
                     ),
                   ],
+                  if (homeworkCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        children: [
+                          Icon(Icons.assignment_outlined,
+                              size: 14, color: scheme.secondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            homeworkCount == 1
+                                ? 'есть домашка'
+                                : 'домашки: $homeworkCount',
+                            style: theme.textTheme.labelSmall
+                                ?.copyWith(color: scheme.secondary),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (slot.note != null && slot.note!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),

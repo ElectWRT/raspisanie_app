@@ -1165,18 +1165,448 @@ class AppMetaCompanion extends UpdateCompanion<AppMetaData> {
   }
 }
 
+class $HomeworksTable extends Homeworks
+    with TableInfo<$HomeworksTable, Homework> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HomeworksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _groupNameMeta =
+      const VerificationMeta('groupName');
+  @override
+  late final GeneratedColumn<String> groupName = GeneratedColumn<String>(
+      'group_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _subjectMeta =
+      const VerificationMeta('subject');
+  @override
+  late final GeneratedColumn<String> subject = GeneratedColumn<String>(
+      'subject', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _dueDateMeta =
+      const VerificationMeta('dueDate');
+  @override
+  late final GeneratedColumn<DateTime> dueDate = GeneratedColumn<DateTime>(
+      'due_date', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<HomeworkPriority, int> priority =
+      GeneratedColumn<int>('priority', aliasedName, false,
+              type: DriftSqlType.int,
+              requiredDuringInsert: false,
+              defaultValue: const Constant(1))
+          .withConverter<HomeworkPriority>($HomeworksTable.$converterpriority);
+  static const VerificationMeta _isDoneMeta = const VerificationMeta('isDone');
+  @override
+  late final GeneratedColumn<bool> isDone = GeneratedColumn<bool>(
+      'is_done', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_done" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        groupName,
+        subject,
+        description,
+        dueDate,
+        priority,
+        isDone,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'homeworks';
+  @override
+  VerificationContext validateIntegrity(Insertable<Homework> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('group_name')) {
+      context.handle(_groupNameMeta,
+          groupName.isAcceptableOrUnknown(data['group_name']!, _groupNameMeta));
+    } else if (isInserting) {
+      context.missing(_groupNameMeta);
+    }
+    if (data.containsKey('subject')) {
+      context.handle(_subjectMeta,
+          subject.isAcceptableOrUnknown(data['subject']!, _subjectMeta));
+    } else if (isInserting) {
+      context.missing(_subjectMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('due_date')) {
+      context.handle(_dueDateMeta,
+          dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta));
+    } else if (isInserting) {
+      context.missing(_dueDateMeta);
+    }
+    if (data.containsKey('is_done')) {
+      context.handle(_isDoneMeta,
+          isDone.isAcceptableOrUnknown(data['is_done']!, _isDoneMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Homework map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Homework(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      groupName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}group_name'])!,
+      subject: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}subject'])!,
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      dueDate: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}due_date'])!,
+      priority: $HomeworksTable.$converterpriority.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}priority'])!),
+      isDone: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_done'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $HomeworksTable createAlias(String alias) {
+    return $HomeworksTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<HomeworkPriority, int, int> $converterpriority =
+      const EnumIndexConverter<HomeworkPriority>(HomeworkPriority.values);
+}
+
+class Homework extends DataClass implements Insertable<Homework> {
+  final int id;
+  final String groupName;
+  final String subject;
+
+  /// Что задали.
+  final String description;
+
+  /// День сдачи — всегда полночь.
+  final DateTime dueDate;
+  final HomeworkPriority priority;
+  final bool isDone;
+  final DateTime createdAt;
+  const Homework(
+      {required this.id,
+      required this.groupName,
+      required this.subject,
+      required this.description,
+      required this.dueDate,
+      required this.priority,
+      required this.isDone,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['group_name'] = Variable<String>(groupName);
+    map['subject'] = Variable<String>(subject);
+    map['description'] = Variable<String>(description);
+    map['due_date'] = Variable<DateTime>(dueDate);
+    {
+      map['priority'] =
+          Variable<int>($HomeworksTable.$converterpriority.toSql(priority));
+    }
+    map['is_done'] = Variable<bool>(isDone);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  HomeworksCompanion toCompanion(bool nullToAbsent) {
+    return HomeworksCompanion(
+      id: Value(id),
+      groupName: Value(groupName),
+      subject: Value(subject),
+      description: Value(description),
+      dueDate: Value(dueDate),
+      priority: Value(priority),
+      isDone: Value(isDone),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Homework.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Homework(
+      id: serializer.fromJson<int>(json['id']),
+      groupName: serializer.fromJson<String>(json['groupName']),
+      subject: serializer.fromJson<String>(json['subject']),
+      description: serializer.fromJson<String>(json['description']),
+      dueDate: serializer.fromJson<DateTime>(json['dueDate']),
+      priority: $HomeworksTable.$converterpriority
+          .fromJson(serializer.fromJson<int>(json['priority'])),
+      isDone: serializer.fromJson<bool>(json['isDone']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'groupName': serializer.toJson<String>(groupName),
+      'subject': serializer.toJson<String>(subject),
+      'description': serializer.toJson<String>(description),
+      'dueDate': serializer.toJson<DateTime>(dueDate),
+      'priority': serializer
+          .toJson<int>($HomeworksTable.$converterpriority.toJson(priority)),
+      'isDone': serializer.toJson<bool>(isDone),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  Homework copyWith(
+          {int? id,
+          String? groupName,
+          String? subject,
+          String? description,
+          DateTime? dueDate,
+          HomeworkPriority? priority,
+          bool? isDone,
+          DateTime? createdAt}) =>
+      Homework(
+        id: id ?? this.id,
+        groupName: groupName ?? this.groupName,
+        subject: subject ?? this.subject,
+        description: description ?? this.description,
+        dueDate: dueDate ?? this.dueDate,
+        priority: priority ?? this.priority,
+        isDone: isDone ?? this.isDone,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  Homework copyWithCompanion(HomeworksCompanion data) {
+    return Homework(
+      id: data.id.present ? data.id.value : this.id,
+      groupName: data.groupName.present ? data.groupName.value : this.groupName,
+      subject: data.subject.present ? data.subject.value : this.subject,
+      description:
+          data.description.present ? data.description.value : this.description,
+      dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      isDone: data.isDone.present ? data.isDone.value : this.isDone,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Homework(')
+          ..write('id: $id, ')
+          ..write('groupName: $groupName, ')
+          ..write('subject: $subject, ')
+          ..write('description: $description, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('priority: $priority, ')
+          ..write('isDone: $isDone, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, groupName, subject, description, dueDate,
+      priority, isDone, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Homework &&
+          other.id == this.id &&
+          other.groupName == this.groupName &&
+          other.subject == this.subject &&
+          other.description == this.description &&
+          other.dueDate == this.dueDate &&
+          other.priority == this.priority &&
+          other.isDone == this.isDone &&
+          other.createdAt == this.createdAt);
+}
+
+class HomeworksCompanion extends UpdateCompanion<Homework> {
+  final Value<int> id;
+  final Value<String> groupName;
+  final Value<String> subject;
+  final Value<String> description;
+  final Value<DateTime> dueDate;
+  final Value<HomeworkPriority> priority;
+  final Value<bool> isDone;
+  final Value<DateTime> createdAt;
+  const HomeworksCompanion({
+    this.id = const Value.absent(),
+    this.groupName = const Value.absent(),
+    this.subject = const Value.absent(),
+    this.description = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.isDone = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  HomeworksCompanion.insert({
+    this.id = const Value.absent(),
+    required String groupName,
+    required String subject,
+    required String description,
+    required DateTime dueDate,
+    this.priority = const Value.absent(),
+    this.isDone = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  })  : groupName = Value(groupName),
+        subject = Value(subject),
+        description = Value(description),
+        dueDate = Value(dueDate);
+  static Insertable<Homework> custom({
+    Expression<int>? id,
+    Expression<String>? groupName,
+    Expression<String>? subject,
+    Expression<String>? description,
+    Expression<DateTime>? dueDate,
+    Expression<int>? priority,
+    Expression<bool>? isDone,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (groupName != null) 'group_name': groupName,
+      if (subject != null) 'subject': subject,
+      if (description != null) 'description': description,
+      if (dueDate != null) 'due_date': dueDate,
+      if (priority != null) 'priority': priority,
+      if (isDone != null) 'is_done': isDone,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  HomeworksCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? groupName,
+      Value<String>? subject,
+      Value<String>? description,
+      Value<DateTime>? dueDate,
+      Value<HomeworkPriority>? priority,
+      Value<bool>? isDone,
+      Value<DateTime>? createdAt}) {
+    return HomeworksCompanion(
+      id: id ?? this.id,
+      groupName: groupName ?? this.groupName,
+      subject: subject ?? this.subject,
+      description: description ?? this.description,
+      dueDate: dueDate ?? this.dueDate,
+      priority: priority ?? this.priority,
+      isDone: isDone ?? this.isDone,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (groupName.present) {
+      map['group_name'] = Variable<String>(groupName.value);
+    }
+    if (subject.present) {
+      map['subject'] = Variable<String>(subject.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (dueDate.present) {
+      map['due_date'] = Variable<DateTime>(dueDate.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(
+          $HomeworksTable.$converterpriority.toSql(priority.value));
+    }
+    if (isDone.present) {
+      map['is_done'] = Variable<bool>(isDone.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeworksCompanion(')
+          ..write('id: $id, ')
+          ..write('groupName: $groupName, ')
+          ..write('subject: $subject, ')
+          ..write('description: $description, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('priority: $priority, ')
+          ..write('isDone: $isDone, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $LessonsTable lessons = $LessonsTable(this);
   late final $SubstitutionsTable substitutions = $SubstitutionsTable(this);
   late final $AppMetaTable appMeta = $AppMetaTable(this);
+  late final $HomeworksTable homeworks = $HomeworksTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [lessons, substitutions, appMeta];
+      [lessons, substitutions, appMeta, homeworks];
 }
 
 typedef $$LessonsTableCreateCompanionBuilder = LessonsCompanion Function({
@@ -1762,6 +2192,212 @@ typedef $$AppMetaTableProcessedTableManager = ProcessedTableManager<
     (AppMetaData, BaseReferences<_$AppDatabase, $AppMetaTable, AppMetaData>),
     AppMetaData,
     PrefetchHooks Function()>;
+typedef $$HomeworksTableCreateCompanionBuilder = HomeworksCompanion Function({
+  Value<int> id,
+  required String groupName,
+  required String subject,
+  required String description,
+  required DateTime dueDate,
+  Value<HomeworkPriority> priority,
+  Value<bool> isDone,
+  Value<DateTime> createdAt,
+});
+typedef $$HomeworksTableUpdateCompanionBuilder = HomeworksCompanion Function({
+  Value<int> id,
+  Value<String> groupName,
+  Value<String> subject,
+  Value<String> description,
+  Value<DateTime> dueDate,
+  Value<HomeworkPriority> priority,
+  Value<bool> isDone,
+  Value<DateTime> createdAt,
+});
+
+class $$HomeworksTableFilterComposer
+    extends Composer<_$AppDatabase, $HomeworksTable> {
+  $$HomeworksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get groupName => $composableBuilder(
+      column: $table.groupName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get subject => $composableBuilder(
+      column: $table.subject, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get dueDate => $composableBuilder(
+      column: $table.dueDate, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<HomeworkPriority, HomeworkPriority, int>
+      get priority => $composableBuilder(
+          column: $table.priority,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<bool> get isDone => $composableBuilder(
+      column: $table.isDone, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$HomeworksTableOrderingComposer
+    extends Composer<_$AppDatabase, $HomeworksTable> {
+  $$HomeworksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get groupName => $composableBuilder(
+      column: $table.groupName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get subject => $composableBuilder(
+      column: $table.subject, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get dueDate => $composableBuilder(
+      column: $table.dueDate, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get priority => $composableBuilder(
+      column: $table.priority, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isDone => $composableBuilder(
+      column: $table.isDone, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$HomeworksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HomeworksTable> {
+  $$HomeworksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get groupName =>
+      $composableBuilder(column: $table.groupName, builder: (column) => column);
+
+  GeneratedColumn<String> get subject =>
+      $composableBuilder(column: $table.subject, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get dueDate =>
+      $composableBuilder(column: $table.dueDate, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<HomeworkPriority, int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDone =>
+      $composableBuilder(column: $table.isDone, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$HomeworksTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $HomeworksTable,
+    Homework,
+    $$HomeworksTableFilterComposer,
+    $$HomeworksTableOrderingComposer,
+    $$HomeworksTableAnnotationComposer,
+    $$HomeworksTableCreateCompanionBuilder,
+    $$HomeworksTableUpdateCompanionBuilder,
+    (Homework, BaseReferences<_$AppDatabase, $HomeworksTable, Homework>),
+    Homework,
+    PrefetchHooks Function()> {
+  $$HomeworksTableTableManager(_$AppDatabase db, $HomeworksTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HomeworksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HomeworksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HomeworksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> groupName = const Value.absent(),
+            Value<String> subject = const Value.absent(),
+            Value<String> description = const Value.absent(),
+            Value<DateTime> dueDate = const Value.absent(),
+            Value<HomeworkPriority> priority = const Value.absent(),
+            Value<bool> isDone = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+          }) =>
+              HomeworksCompanion(
+            id: id,
+            groupName: groupName,
+            subject: subject,
+            description: description,
+            dueDate: dueDate,
+            priority: priority,
+            isDone: isDone,
+            createdAt: createdAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String groupName,
+            required String subject,
+            required String description,
+            required DateTime dueDate,
+            Value<HomeworkPriority> priority = const Value.absent(),
+            Value<bool> isDone = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+          }) =>
+              HomeworksCompanion.insert(
+            id: id,
+            groupName: groupName,
+            subject: subject,
+            description: description,
+            dueDate: dueDate,
+            priority: priority,
+            isDone: isDone,
+            createdAt: createdAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$HomeworksTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $HomeworksTable,
+    Homework,
+    $$HomeworksTableFilterComposer,
+    $$HomeworksTableOrderingComposer,
+    $$HomeworksTableAnnotationComposer,
+    $$HomeworksTableCreateCompanionBuilder,
+    $$HomeworksTableUpdateCompanionBuilder,
+    (Homework, BaseReferences<_$AppDatabase, $HomeworksTable, Homework>),
+    Homework,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1772,4 +2408,6 @@ class $AppDatabaseManager {
       $$SubstitutionsTableTableManager(_db, _db.substitutions);
   $$AppMetaTableTableManager get appMeta =>
       $$AppMetaTableTableManager(_db, _db.appMeta);
+  $$HomeworksTableTableManager get homeworks =>
+      $$HomeworksTableTableManager(_db, _db.homeworks);
 }

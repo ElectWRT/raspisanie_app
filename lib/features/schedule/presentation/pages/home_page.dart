@@ -7,10 +7,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/settings/app_settings.dart';
 import '../../../../core/utils/week_utils.dart';
 import '../../../../di.dart';
+import '../../../homework/presentation/bloc/homework_cubit.dart';
+import '../../../homework/presentation/pages/homework_page.dart';
 import '../../../settings/presentation/settings_page.dart';
 import '../../../substitutions/presentation/bloc/substitutions_cubit.dart';
 import '../../../substitutions/presentation/pages/substitutions_page.dart';
 import '../../domain/entities/bell_schedule.dart';
+import '../../domain/repositories/schedule_repository.dart';
 import '../../domain/entities/schedule_slot.dart';
 import '../bloc/schedule_cubit.dart';
 import '../widgets/day_switcher.dart';
@@ -50,6 +53,7 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                 ),
+                _HomeworkButton(group: state.group),
                 IconButton(
                   tooltip: 'Настройки',
                   icon: const Icon(Icons.settings_outlined),
@@ -178,6 +182,15 @@ class _DayBodyState extends State<_DayBody> {
     final isToday = WeekUtils.dayKey(_now) == day.date;
     final compact = settings.compactCards;
 
+    // Незакрытые задания по предметам — значок на карточке пары.
+    final homework = context.watch<HomeworkCubit>().state;
+    final counts = <String, int>{};
+    for (final task in homework.items) {
+      if (task.isDone) continue;
+      final key = task.subject.toLowerCase();
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
       itemCount: day.slots.length + 1,
@@ -197,6 +210,7 @@ class _DayBodyState extends State<_DayBody> {
           compact: compact,
           isNow: highlight && (bell?.isNow(_now, day.date) ?? false),
           isPast: highlight && (bell?.isPast(_now, day.date) ?? false),
+          homeworkCount: counts[slot.subject.toLowerCase()] ?? 0,
         );
       },
     );
@@ -598,6 +612,55 @@ class _StartupErrorView extends StatelessWidget {
             label: const Text('Скопировать ошибку'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Кнопка домашки в шапке. На ней — счётчик незакрытых заданий.
+class _HomeworkButton extends StatelessWidget {
+  const _HomeworkButton({required this.group});
+
+  final String? group;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<HomeworkCubit, HomeworkState>(
+      builder: (context, state) {
+        final pending = state.items.where((h) => !h.isDone).length;
+        final overdue = state.overdue.isNotEmpty;
+
+        return IconButton(
+          tooltip: 'Домашние задания',
+          onPressed: () => _open(context),
+          icon: Badge(
+            isLabelVisible: pending > 0,
+            label: Text('$pending'),
+            backgroundColor: overdue
+                ? Theme.of(context).colorScheme.error
+                : Theme.of(context).colorScheme.secondary,
+            child: const Icon(Icons.assignment_outlined),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final homeworkCubit = context.read<HomeworkCubit>();
+    final navigator = Navigator.of(context);
+
+    // Предметы группы подставляются подсказками в редакторе задания.
+    final subjects = group == null
+        ? <String>[]
+        : await getIt<ScheduleRepository>().subjects(group!);
+
+    await navigator.push(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: homeworkCubit,
+          child: HomeworkPage(subjects: subjects),
+        ),
       ),
     );
   }

@@ -1,12 +1,14 @@
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:raspisanie_app/core/database/tables.dart';
 import 'package:raspisanie_app/core/error/failures.dart';
 import 'package:raspisanie_app/core/notifications/notification_service.dart';
 import 'package:raspisanie_app/core/notifications/reminder_scheduler.dart';
 import 'package:raspisanie_app/core/settings/app_settings.dart';
 import 'package:raspisanie_app/features/schedule/data/datasources/markdown_schedule_parser.dart';
 import 'package:raspisanie_app/features/schedule/domain/entities/bell_schedule.dart';
+import 'package:raspisanie_app/core/database/database.dart';
+import 'package:raspisanie_app/core/utils/week_utils.dart';
+import 'package:raspisanie_app/features/homework/domain/repositories/homework_repository.dart';
 import 'package:raspisanie_app/features/schedule/domain/entities/schedule_slot.dart';
 import 'package:raspisanie_app/features/schedule/domain/repositories/schedule_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,6 +22,13 @@ class _FakeScheduleRepository implements ScheduleRepository {
 
   @override
   Future<List<BellSchedule>> getBellSchedules() async => bells;
+
+  @override
+  Future<List<String>> subjects(String groupName) async =>
+      slotsByWeekday.values
+          .expand((slots) => slots.map((s) => s.subject))
+          .toSet()
+          .toList();
 
   @override
   Stream<DaySchedule> watchDay({
@@ -88,10 +97,12 @@ void main() {
   ReminderScheduler build({
     required Map<int, List<ScheduleSlot>> slots,
     List<BellSchedule> schedules = bells,
+    List<Homework> homeworks = const [],
   }) {
     return ReminderScheduler(
       repository:
           _FakeScheduleRepository(bells: schedules, slotsByWeekday: slots),
+      homework: _FakeHomeworkRepository(homeworks),
       settings: settings,
       notifications: NotificationService.create(),
     );
@@ -230,6 +241,125 @@ void main() {
       expect(bodyFor(21), contains('через 21 минуту'));
     });
   });
+  group('напоминания о домашке', () {
+    Homework task({
+      required DateTime due,
+      HomeworkPriority priority = HomeworkPriority.required,
+      bool isDone = false,
+      String subject = 'Математика',
+    }) {
+      return Homework(
+        id: due.millisecondsSinceEpoch % 100000,
+        groupName: 'СА-2124',
+        subject: subject,
+        description: 'Задачи 1-5',
+        dueDate: due,
+        priority: priority,
+        isDone: isDone,
+        createdAt: DateTime.now(),
+      );
+    }
+
+    test('напоминает за указанное число дней в заданный час', () async {
+      await settings.setHomeworkDaysBefore(2);
+      await settings.setHomeworkReminderHour(19);
+
+      final due = WeekUtils.dayKey(DateTime.now().add(const Duration(days: 5)));
+      final scheduler = build(slots: const {}, homeworks: [task(due: due)]);
+
+      final reminders = await scheduler.buildHomeworkReminders('СА-2124');
+
+      expect(reminders, hasLength(1));
+      final when = reminders.single.when;
+      expect(WeekUtils.dayKey(when), due.subtract(const Duration(days: 2)));
+      expect(when.hour, 19);
+      expect(reminders.single.daysLeft, 2);
+    });
+
+    test('о необязательном не напоминает', () async {
+      final due = WeekUtils.dayKey(DateTime.now().add(const Duration(days: 5)));
+      final scheduler = build(slots: const {}, homeworks: [
+        task(due: due, priority: HomeworkPriority.optional),
+      ]);
+
+      expect(await scheduler.buildHomeworkReminders('СА-2124'), isEmpty);
+    });
+
+    test('о сделанном не напоминает', () async {
+      final due = WeekUtils.dayKey(DateTime.now().add(const Duration(days: 5)));
+      final scheduler = build(slots: const {}, homeworks: [
+        task(due: due, isDone: true),
+      ]);
+
+      expect(await scheduler.buildHomeworkReminders('СА-2124'), isEmpty);
+    });
+
+    test('момент в прошлом не планируется', () async {
+      final due = WeekUtils.dayKey(
+        DateTime.now().subtract(const Duration(days: 3)),
+      );
+      final scheduler = build(slots: const {}, homeworks: [task(due: due)]);
+
+      expect(await scheduler.buildHomeworkReminders('СА-2124'), isEmpty);
+    });
+
+    test('текст содержит предмет, срок и приоритет', () async {
+      await settings.setHomeworkDaysBefore(1);
+      final due = WeekUtils.dayKey(DateTime.now().add(const Duration(days: 4)));
+      final scheduler = build(slots: const {}, homeworks: [task(due: due)]);
+
+      final reminder =
+          (await scheduler.buildHomeworkReminders('СА-2124')).single;
+
+      expect(reminder.title, contains('Математика'));
+      expect(reminder.body, contains('Обязательно'));
+      expect(reminder.body, contains('сдавать завтра'));
+      expect(reminder.body, contains('Задачи 1-5'));
+    });
+  });
 }
 
 final _anyTime = DateTime(2026, 9, 1, 10, 0);
+
+/// Подставной репозиторий домашки: отдаёт заранее заданный список.
+class _FakeHomeworkRepository implements HomeworkRepository {
+  _FakeHomeworkRepository(this.items);
+
+  final List<Homework> items;
+
+  @override
+  Future<List<Homework>> pending(String groupName) async =>
+      items.where((h) => !h.isDone).toList();
+
+  @override
+  Stream<List<Homework>> watch({
+    required String groupName,
+    bool includeDone = false,
+  }) =>
+      Stream.value(items);
+
+  @override
+  Stream<Map<String, int>> watchCountsBySubject(String groupName) =>
+      Stream.value(const {});
+
+  @override
+  Future<void> add({
+    required String groupName,
+    required String subject,
+    required String description,
+    required DateTime dueDate,
+    required HomeworkPriority priority,
+  }) async {}
+
+  @override
+  Future<void> save(Homework item) async {}
+
+  @override
+  Future<void> setDone(int id, bool done) async {}
+
+  @override
+  Future<void> remove(int id) async {}
+
+  @override
+  Future<void> purgeOld() async {}
+}

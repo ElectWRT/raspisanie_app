@@ -5,9 +5,17 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+/// Общий вид запланированного уведомления.
+abstract class PendingReminder {
+  DateTime get when;
+  String get title;
+  String get body;
+}
+
 /// Одно запланированное напоминание о паре.
-class LessonReminder {
+class LessonReminder implements PendingReminder {
   /// Момент, когда показать уведомление.
+  @override
   final DateTime when;
 
   /// Время звонка, «10:10».
@@ -35,11 +43,13 @@ class LessonReminder {
     this.isSubstitution = false,
   });
 
+  @override
   String get title {
     final prefix = isSubstitution ? 'Замена · ' : '';
     return '$prefix$subject';
   }
 
+  @override
   String get body {
     final parts = <String>[
       'Звонок в $bellTime — через $minutesBefore ${_minutesWord(minutesBefore)}',
@@ -57,6 +67,50 @@ class LessonReminder {
       return 'минуты';
     }
     return 'минут';
+  }
+}
+
+/// Напоминание о домашнем задании.
+class HomeworkReminder implements PendingReminder {
+  @override
+  final DateTime when;
+
+  final String subject;
+  final String description;
+
+  /// Через сколько дней сдавать, считая от дня напоминания.
+  final int daysLeft;
+
+  /// Подпись приоритета — «Обязательно», «Желательно».
+  final String priorityLabel;
+
+  const HomeworkReminder({
+    required this.when,
+    required this.subject,
+    required this.description,
+    required this.daysLeft,
+    required this.priorityLabel,
+  });
+
+  @override
+  String get title => 'Домашка · $subject';
+
+  @override
+  String get body {
+    final deadline = switch (daysLeft) {
+      <= 0 => 'сдавать сегодня',
+      1 => 'сдавать завтра',
+      _ => 'сдавать через $daysLeft ${_daysWord(daysLeft)}',
+    };
+    return '$priorityLabel · $deadline\n$description';
+  }
+
+  static String _daysWord(int days) {
+    final mod10 = days % 10;
+    final mod100 = days % 100;
+    if (mod10 == 1 && mod100 != 11) return 'день';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'дня';
+    return 'дней';
   }
 }
 
@@ -130,7 +184,7 @@ class NotificationService {
   /// доставляет уведомление приблизительно — обычно с задержкой до
   /// нескольких минут.
   Future<int> reschedule(
-    List<LessonReminder> reminders, {
+    List<PendingReminder> reminders, {
     bool exact = false,
   }) async {
     await init();
@@ -147,7 +201,7 @@ class NotificationService {
         title: reminder.title,
         body: reminder.body,
         scheduledDate: tz.TZDateTime.from(reminder.when, tz.local),
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
@@ -155,6 +209,11 @@ class NotificationService {
             importance: Importance.high,
             priority: Priority.high,
             category: AndroidNotificationCategory.reminder,
+            // Текст задания бывает длинным — даём развернуть уведомление.
+            styleInformation: BigTextStyleInformation(
+              reminder.body,
+              contentTitle: reminder.title,
+            ),
           ),
         ),
         androidScheduleMode: exact

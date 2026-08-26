@@ -63,3 +63,33 @@ class AppMeta extends Table {
   @override
   Set<Column> get primaryKey => {key};
 }
+
+/// Насколько обязательно сделать задание.
+enum HomeworkPriority {
+  /// Не критично — можно и пропустить.
+  optional,
+
+  /// Желательно сделать.
+  normal,
+
+  /// Обязательно: спросят, влияет на оценку.
+  required,
+}
+
+/// Домашние задания. Привязаны к предмету и дате сдачи, а не к конкретной
+/// паре: пару могут перенести заменой, а сдавать всё равно к этому дню.
+class Homeworks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get groupName => text()();
+  TextColumn get subject => text()();
+
+  /// Что задали.
+  TextColumn get description => text()();
+
+  /// День сдачи — всегда полночь.
+  DateTimeColumn get dueDate => dateTime()();
+  IntColumn get priority =>
+      intEnum<HomeworkPriority>().withDefault(const Constant(1))();
+  BoolColumn get isDone => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}

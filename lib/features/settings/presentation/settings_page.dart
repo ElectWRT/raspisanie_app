@@ -207,6 +207,51 @@ class _SettingsPageState extends State<SettingsPage> {
           value: _settings.exactAlarms,
           onChanged: _toggleExactAlarms,
         ),
+        const Divider(indent: 16, endIndent: 16),
+        SwitchListTile(
+          secondary: const Icon(Icons.assignment_outlined),
+          title: const Text('Напоминать о домашке'),
+          subtitle: const Text('Кроме заданий с приоритетом «не критично»'),
+          value: _settings.homeworkReminders,
+          onChanged: (value) async {
+            await _settings.setHomeworkReminders(value);
+            if (mounted) setState(() {});
+            await getIt<ReminderScheduler>().refresh();
+          },
+        ),
+        if (_settings.homeworkReminders) ...[
+          ListTile(
+            leading: const Icon(Icons.event_available_outlined),
+            title: const Text('За сколько дней до сдачи'),
+            subtitle: SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 1, label: Text('1')),
+                ButtonSegment(value: 2, label: Text('2')),
+                ButtonSegment(value: 3, label: Text('3')),
+                ButtonSegment(value: 7, label: Text('7')),
+              ],
+              selected: {_settings.homeworkDaysBefore},
+              onSelectionChanged: (selection) async {
+                await _settings.setHomeworkDaysBefore(selection.first);
+                if (mounted) setState(() {});
+                await getIt<ReminderScheduler>().refresh();
+              },
+            ),
+            isThreeLine: true,
+          ),
+          ListTile(
+            leading: const Icon(Icons.schedule_outlined),
+            title: const Text('Во сколько напоминать'),
+            subtitle: const Text('Час, когда придёт уведомление о домашке'),
+            trailing: Text(
+              '${_settings.homeworkReminderHour.toString().padLeft(2, '0')}:00',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            onTap: _pickHomeworkHour,
+          ),
+        ],
+        const Divider(indent: 16, endIndent: 16),
         ListTile(
           leading: const Icon(Icons.fact_check_outlined),
           title: const Text('Проверить напоминания'),
@@ -215,6 +260,23 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ],
     ];
+  }
+
+  Future<void> _pickHomeworkHour() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _settings.homeworkReminderHour, minute: 0),
+      helpText: 'Когда напоминать о домашке',
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (picked == null) return;
+
+    await _settings.setHomeworkReminderHour(picked.hour);
+    if (mounted) setState(() {});
+    await getIt<ReminderScheduler>().refresh();
   }
 
   Future<void> _toggleNotifications(bool value) async {

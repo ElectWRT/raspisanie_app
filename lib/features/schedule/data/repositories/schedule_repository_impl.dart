@@ -74,6 +74,10 @@ class ScheduleRepositoryImpl implements ScheduleRepository {
   Future<bool> get hasSchedule async => (await database.countLessons()) > 0;
 
   @override
+  Future<List<String>> subjects(String groupName) =>
+      database.getSubjectNames(groupName);
+
+  @override
   Either<Failure, ScheduleImportResult> preview(String markdown) {
     try {
       return Right(parser.parse(markdown));

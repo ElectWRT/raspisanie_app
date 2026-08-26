@@ -11,7 +11,7 @@ export 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [Lessons, Substitutions, AppMeta])
+@DriftDatabase(tables: [Lessons, Substitutions, AppMeta, Homeworks])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -19,7 +19,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          // v2: домашние задания. У существующих установок база уже с
+          // расписанием — создаём только новую таблицу, ничего не трогая.
+          if (from < 2) {
+            await m.createTable(homeworks);
+          }
+        },
+      );
 
   // ---------------------------------------------------------------- Lessons
 
@@ -59,6 +71,16 @@ class AppDatabase extends _$AppDatabase {
     return query.watch().map(
           (rows) => rows.map((r) => r.read(lessons.groupName)!).toList(),
         );
+  }
+
+  /// Названия предметов группы — подсказки при добавлении домашки.
+  Future<List<String>> getSubjectNames(String groupName) async {
+    final query = selectOnly(lessons, distinct: true)
+      ..addColumns([lessons.subject])
+      ..where(lessons.groupName.equals(groupName))
+      ..orderBy([OrderingTerm(expression: lessons.subject)]);
+    final rows = await query.get();
+    return rows.map((r) => r.read(lessons.subject)!).toList();
   }
 
   Future<int> countLessons() async {
@@ -158,6 +180,72 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> clearSubstitutions() => delete(substitutions).go();
+
+  // -------------------------------------------------------------- Homeworks
+
+  /// Незакрытые задания группы, ближайшие по сроку — первыми.
+  Stream<List<Homework>> watchHomeworks({
+    required String groupName,
+    bool includeDone = false,
+  }) {
+    final query = select(homeworks)
+      ..where((t) => includeDone
+          ? t.groupName.equals(groupName)
+          : t.groupName.equals(groupName) & t.isDone.equals(false))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.dueDate),
+        (t) => OrderingTerm(expression: t.priority, mode: OrderingMode.desc),
+      ]);
+    return query.watch();
+  }
+
+  /// Задания, по которым ещё нужно напомнить.
+  Future<List<Homework>> getPendingHomeworks(String groupName) {
+    return (select(homeworks)
+          ..where((t) => t.groupName.equals(groupName) & t.isDone.equals(false)))
+        .get();
+  }
+
+  /// Сколько незакрытых заданий по предмету на ближайшие дни —
+  /// для значка на карточке пары.
+  Stream<Map<String, int>> watchHomeworkCountsBySubject(String groupName) {
+    final query = select(homeworks)
+      ..where((t) => t.groupName.equals(groupName) & t.isDone.equals(false));
+
+    return query.watch().map((rows) {
+      final counts = <String, int>{};
+      for (final row in rows) {
+        final key = row.subject.toLowerCase();
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+      return counts;
+    });
+  }
+
+  Future<int> insertHomework(HomeworksCompanion item) =>
+      into(homeworks).insert(item);
+
+  Future<bool> updateHomework(Homework item) =>
+      update(homeworks).replace(item);
+
+  Future<void> setHomeworkDone(int id, bool done) =>
+      (update(homeworks)..where((t) => t.id.equals(id)))
+          .write(HomeworksCompanion(isDone: Value(done)));
+
+  Future<int> deleteHomework(int id) =>
+      (delete(homeworks)..where((t) => t.id.equals(id))).go();
+
+  /// Убирает выполненные задания, у которых срок давно прошёл.
+  Future<int> purgeOldHomeworks({int days = 30}) {
+    final cutoff = DateTime.now().subtract(Duration(days: days));
+    return (delete(homeworks)
+          ..where((t) =>
+              t.isDone.equals(true) &
+              t.dueDate.isSmallerThanValue(
+                DateTime(cutoff.year, cutoff.month, cutoff.day),
+              )))
+        .go();
+  }
 
   // ---------------------------------------------------------------- AppMeta
 

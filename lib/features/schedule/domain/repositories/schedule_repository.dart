@@ -25,6 +25,9 @@ abstract class ScheduleRepository {
 
   Future<bool> get hasSchedule;
 
+  /// Предметы группы — для подсказок в домашке.
+  Future<List<String>> subjects(String groupName);
+
   /// Разбирает Markdown, но ничего не сохраняет — для экрана предпросмотра.
   Either<Failure, ScheduleImportResult> preview(String markdown);
 

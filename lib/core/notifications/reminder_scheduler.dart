@@ -1,3 +1,5 @@
+import '../../features/homework/domain/homework_priority_ui.dart';
+import '../../features/homework/domain/repositories/homework_repository.dart';
 import '../../features/schedule/domain/entities/bell_schedule.dart';
 import '../../features/schedule/domain/repositories/schedule_repository.dart';
 import '../settings/app_settings.dart';
@@ -11,11 +13,13 @@ import 'notification_service.dart';
 class ReminderScheduler {
   ReminderScheduler({
     required this.repository,
+    required this.homework,
     required this.settings,
     required this.notifications,
   });
 
   final ScheduleRepository repository;
+  final HomeworkRepository homework;
   final AppSettings settings;
   final NotificationService notifications;
 
@@ -36,8 +40,52 @@ class ReminderScheduler {
       return 0;
     }
 
-    final reminders = await buildReminders(group);
+    final reminders = <PendingReminder>[
+      ...await buildReminders(group),
+      if (settings.homeworkReminders) ...await buildHomeworkReminders(group),
+    ]..sort((a, b) => a.when.compareTo(b.when));
+
     return notifications.reschedule(reminders, exact: settings.exactAlarms);
+  }
+
+  /// Собирает напоминания о домашке: одно на задание, за
+  /// [AppSettings.homeworkDaysBefore] дней до срока.
+  ///
+  /// О заданиях с приоритетом «не критично» не напоминаем — иначе шторка
+  /// превращается в шум, и важное в ней теряется.
+  Future<List<HomeworkReminder>> buildHomeworkReminders(String group) async {
+    final tasks = await homework.pending(group);
+    if (tasks.isEmpty) return const [];
+
+    final now = DateTime.now();
+    final daysBefore = settings.homeworkDaysBefore;
+    final hour = settings.homeworkReminderHour;
+    final reminders = <HomeworkReminder>[];
+
+    for (final task in tasks) {
+      if (!task.priority.deservesReminder) continue;
+
+      final due = WeekUtils.dayKey(task.dueDate);
+      final remindDay = due.subtract(Duration(days: daysBefore));
+      final when = DateTime(
+        remindDay.year,
+        remindDay.month,
+        remindDay.day,
+        hour,
+      );
+
+      if (!when.isAfter(now)) continue;
+
+      reminders.add(HomeworkReminder(
+        when: when,
+        subject: task.subject,
+        description: task.description,
+        daysLeft: due.difference(WeekUtils.dayKey(when)).inDays,
+        priorityLabel: task.priority.label,
+      ));
+    }
+
+    return reminders;
   }
 
   /// Собирает список напоминаний на ближайшие дни.

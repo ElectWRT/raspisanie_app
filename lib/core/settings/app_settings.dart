@@ -22,6 +22,9 @@ class AppSettings extends ChangeNotifier {
   static const _kCompact = 'compact_cards';
   static const _kShowWeekends = 'show_weekends';
   static const _kHighlightCurrent = 'highlight_current_lesson';
+  static const _kHomeworkReminders = 'homework_reminders_enabled';
+  static const _kHomeworkDaysBefore = 'homework_days_before';
+  static const _kHomeworkHour = 'homework_reminder_hour';
   static const _kNotifications = 'notifications_enabled';
   static const _kReminderMinutes = 'reminder_minutes';
   static const _kExactAlarms = 'exact_alarms';
@@ -65,6 +68,15 @@ class AppSettings extends ChangeNotifier {
 
   /// Показывать субботу и воскресенье в переключателе дней.
   bool get showWeekends => _prefs.getBool(_kShowWeekends) ?? true;
+
+  /// Напоминать о домашних заданиях.
+  bool get homeworkReminders => _prefs.getBool(_kHomeworkReminders) ?? true;
+
+  /// За сколько дней до сдачи напомнить.
+  int get homeworkDaysBefore => _prefs.getInt(_kHomeworkDaysBefore) ?? 1;
+
+  /// Во сколько часов присылать напоминание о домашке.
+  int get homeworkReminderHour => _prefs.getInt(_kHomeworkHour) ?? 19;
 
   /// Подсвечивать пару, которая идёт прямо сейчас.
   bool get highlightCurrentLesson =>
@@ -190,6 +202,21 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> setExactAlarms(bool value) async {
     await _prefs.setBool(_kExactAlarms, value);
+    notifyListeners();
+  }
+
+  Future<void> setHomeworkReminders(bool value) async {
+    await _prefs.setBool(_kHomeworkReminders, value);
+    notifyListeners();
+  }
+
+  Future<void> setHomeworkDaysBefore(int value) async {
+    await _prefs.setInt(_kHomeworkDaysBefore, value);
+    notifyListeners();
+  }
+
+  Future<void> setHomeworkReminderHour(int value) async {
+    await _prefs.setInt(_kHomeworkHour, value.clamp(0, 23));
     notifyListeners();
   }
 

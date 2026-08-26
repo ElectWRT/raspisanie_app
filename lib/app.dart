@@ -6,6 +6,8 @@ import 'core/notifications/reminder_scheduler.dart';
 import 'core/settings/app_settings.dart';
 import 'core/theme/app_theme.dart';
 import 'di.dart';
+import 'features/homework/domain/repositories/homework_repository.dart';
+import 'features/homework/presentation/bloc/homework_cubit.dart';
 import 'features/schedule/domain/repositories/schedule_repository.dart';
 import 'features/schedule/presentation/bloc/schedule_cubit.dart';
 import 'features/schedule/presentation/pages/home_page.dart';
@@ -27,6 +29,13 @@ class RaspisanieApp extends StatelessWidget {
             settings: settings,
             reminders: getIt<ReminderScheduler>(),
           )..init(),
+        ),
+        BlocProvider(
+          create: (_) => HomeworkCubit(
+            repository: getIt<HomeworkRepository>(),
+            settings: settings,
+            reminders: getIt<ReminderScheduler>(),
+          )..load(),
         ),
         BlocProvider(
           create: (_) {
