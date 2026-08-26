@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:workmanager/workmanager.dart';
 
 import 'app.dart';
+import 'core/background/background_refresh.dart';
+import 'core/settings/app_settings.dart';
 import 'di.dart';
 
 Future<void> main() async {
@@ -22,7 +25,20 @@ Future<void> main() async {
     return;
   }
 
+  // Фоновая проверка замен. Как и уведомления, не ждём её на старте:
+  // сбой плагина не должен мешать приложению открыться.
+  unawaited(_setUpBackgroundRefresh());
+
   runApp(const RaspisanieApp());
+}
+
+Future<void> _setUpBackgroundRefresh() async {
+  try {
+    await Workmanager().initialize(backgroundCallbackDispatcher);
+    await BackgroundRefresh.apply(getIt<AppSettings>());
+  } catch (error) {
+    debugPrint('Фоновое обновление не настроено: $error');
+  }
 }
 
 /// Показывается, когда приложение не смогло собрать зависимости —

@@ -126,6 +126,16 @@ class NotificationService {
   static const _channelDescription =
       'Уведомление незадолго до звонка на пару';
 
+  static const _alertChannelId = 'substitution_alerts';
+  static const _alertChannelName = 'Новые замены';
+  static const _alertChannelDescription =
+      'Сообщение, когда на сайте появились новые замены';
+
+  /// Границы пространства идентификаторов. Напоминания занимают 0..9999
+  /// и полностью перепланируются, а сообщения о заменах живут выше —
+  /// иначе перепланирование стирало бы их с экрана.
+  static const _alertIdBase = 10000;
+
   /// Запоминаем сам Future, а не флаг: параллельные вызовы init()
   /// должны ждать одну и ту же инициализацию, а не запускать вторую.
   Future<void>? _initFuture;
@@ -188,7 +198,7 @@ class NotificationService {
     bool exact = false,
   }) async {
     await init();
-    await cancelAll();
+    await cancelReminders();
 
     final now = DateTime.now();
     var scheduled = 0;
@@ -227,6 +237,38 @@ class NotificationService {
   }
 
   Future<void> cancelAll() => _plugin.cancelAll();
+
+  /// Снимает только напоминания, не трогая сообщения о новых заменах.
+  Future<void> cancelReminders() async {
+    for (final request in await _plugin.pendingNotificationRequests()) {
+      if (request.id < _alertIdBase) {
+        await _plugin.cancel(id: request.id);
+      }
+    }
+  }
+
+  /// Показывает сообщение о том, что появились новые замены.
+  Future<void> showSubstitutionAlert({
+    required String title,
+    required String body,
+  }) async {
+    await init();
+    await _plugin.show(
+      id: _alertIdBase + 1,
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          _alertChannelId,
+          _alertChannelName,
+          channelDescription: _alertChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          styleInformation: BigTextStyleInformation(body, contentTitle: title),
+        ),
+      ),
+    );
+  }
 
   Future<List<PendingNotificationRequest>> pending() =>
       _plugin.pendingNotificationRequests();

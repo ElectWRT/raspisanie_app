@@ -28,6 +28,8 @@ class AppSettings extends ChangeNotifier {
   static const _kNotifications = 'notifications_enabled';
   static const _kReminderMinutes = 'reminder_minutes';
   static const _kExactAlarms = 'exact_alarms';
+  static const _kBackgroundRefresh = 'background_refresh_enabled';
+  static const _kBackgroundHours = 'background_refresh_hours';
 
   /// Страница учебного заведения, где завуч публикует ссылки на замены.
   static const defaultSourcePageUrl =
@@ -91,6 +93,14 @@ class AppSettings extends ChangeNotifier {
   /// Точное время срабатывания. Требует отдельного разрешения Android;
   /// без него уведомления приходят приблизительно.
   bool get exactAlarms => _prefs.getBool(_kExactAlarms) ?? false;
+
+  /// Проверять замены в фоне, даже когда приложение закрыто.
+  bool get backgroundRefreshEnabled =>
+      _prefs.getBool(_kBackgroundRefresh) ?? false;
+
+  /// Как часто проверять. Android не запускает задачи чаще раза в 15 минут,
+  /// а для замен разумный шаг — часы.
+  int get backgroundRefreshHours => _prefs.getInt(_kBackgroundHours) ?? 3;
 
   String get sourcePageUrl =>
       _prefs.getString(_kSourcePageUrl) ?? defaultSourcePageUrl;
@@ -197,6 +207,16 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> setReminderMinutes(int value) async {
     await _prefs.setInt(_kReminderMinutes, value);
+    notifyListeners();
+  }
+
+  Future<void> setBackgroundRefreshEnabled(bool value) async {
+    await _prefs.setBool(_kBackgroundRefresh, value);
+    notifyListeners();
+  }
+
+  Future<void> setBackgroundRefreshHours(int value) async {
+    await _prefs.setInt(_kBackgroundHours, value.clamp(1, 24));
     notifyListeners();
   }
 

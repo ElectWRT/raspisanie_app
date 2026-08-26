@@ -14,8 +14,37 @@ import 'features/schedule/presentation/pages/home_page.dart';
 import 'features/substitutions/domain/repositories/substitutions_repository.dart';
 import 'features/substitutions/presentation/bloc/substitutions_cubit.dart';
 
-class RaspisanieApp extends StatelessWidget {
+class RaspisanieApp extends StatefulWidget {
   const RaspisanieApp({super.key});
+
+  @override
+  State<RaspisanieApp> createState() => _RaspisanieAppState();
+}
+
+class _RaspisanieAppState extends State<RaspisanieApp>
+    with WidgetsBindingObserver {
+  ScheduleCubit? _scheduleCubit;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Фоновая задача пишет в базу из другого изолята, и потоки drift
+    // в UI-изоляте об этом не узнают. Поэтому перечитываем при возврате.
+    if (state == AppLifecycleState.resumed) {
+      _scheduleCubit?.reload();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,11 +53,15 @@ class RaspisanieApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (_) => ScheduleCubit(
-            repository: getIt<ScheduleRepository>(),
-            settings: settings,
-            reminders: getIt<ReminderScheduler>(),
-          )..init(),
+          create: (_) {
+            final cubit = ScheduleCubit(
+              repository: getIt<ScheduleRepository>(),
+              settings: settings,
+              reminders: getIt<ReminderScheduler>(),
+            )..init();
+            _scheduleCubit = cubit;
+            return cubit;
+          },
         ),
         BlocProvider(
           create: (_) => HomeworkCubit(

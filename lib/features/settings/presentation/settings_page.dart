@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/background/background_refresh.dart';
 import '../../../core/notifications/notification_service.dart';
 import '../../../core/notifications/reminder_scheduler.dart';
 import '../../../core/settings/app_settings.dart';
@@ -515,6 +516,59 @@ class _SettingsPageState extends State<SettingsPage> {
           if (mounted) setState(() {});
         },
       ),
+      SwitchListTile(
+        secondary: const Icon(Icons.cloud_sync_outlined),
+        title: const Text('Проверять в фоне'),
+        subtitle: const Text(
+          'Приложение само сходит на сайт и пришлёт уведомление, '
+          'когда появятся новые замены',
+        ),
+        isThreeLine: true,
+        value: _settings.backgroundRefreshEnabled,
+        onChanged: (value) async {
+          final messenger = ScaffoldMessenger.of(context);
+
+          if (value && !_settings.notificationsEnabled) {
+            // Без разрешения на уведомления фоновая проверка бессмысленна:
+            // приложение узнает о заменах, а сказать не сможет.
+            final granted = await getIt<NotificationService>()
+                .requestPermission();
+            if (!granted) {
+              messenger.showSnackBar(const SnackBar(
+                content: Text(
+                  'Без разрешения на уведомления сообщить о заменах не выйдет',
+                ),
+              ));
+              return;
+            }
+          }
+
+          await _settings.setBackgroundRefreshEnabled(value);
+          await BackgroundRefresh.apply(_settings);
+          if (mounted) setState(() {});
+        },
+      ),
+      if (_settings.backgroundRefreshEnabled)
+        ListTile(
+          leading: const Icon(Icons.timelapse_outlined),
+          title: const Text('Как часто проверять'),
+          subtitle: SegmentedButton<int>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 1, label: Text('1 ч')),
+              ButtonSegment(value: 3, label: Text('3 ч')),
+              ButtonSegment(value: 6, label: Text('6 ч')),
+              ButtonSegment(value: 12, label: Text('12 ч')),
+            ],
+            selected: {_settings.backgroundRefreshHours},
+            onSelectionChanged: (selection) async {
+              await _settings.setBackgroundRefreshHours(selection.first);
+              await BackgroundRefresh.apply(_settings);
+              if (mounted) setState(() {});
+            },
+          ),
+          isThreeLine: true,
+        ),
       ListTile(
         leading: const Icon(Icons.description_outlined),
         title: const Text('Загрузить .docx вручную'),
