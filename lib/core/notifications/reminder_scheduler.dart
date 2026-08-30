@@ -78,6 +78,7 @@ class ReminderScheduler {
 
       reminders.add(HomeworkReminder(
         when: when,
+        homeworkId: task.id,
         subject: task.subject,
         description: task.description,
         daysLeft: due.difference(WeekUtils.dayKey(when)).inDays,
@@ -127,6 +128,7 @@ class ReminderScheduler {
 
         reminders.add(LessonReminder(
           when: when,
+          date: date,
           bellTime: bell.start,
           minutesBefore: minutesBefore,
           subject: slot.subject,

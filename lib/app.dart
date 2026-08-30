@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'core/notifications/notification_router.dart';
+import 'core/notifications/notification_service.dart';
 import 'core/notifications/reminder_scheduler.dart';
 import 'core/settings/app_settings.dart';
 import 'core/theme/app_theme.dart';
@@ -24,16 +28,36 @@ class RaspisanieApp extends StatefulWidget {
 class _RaspisanieAppState extends State<RaspisanieApp>
     with WidgetsBindingObserver {
   ScheduleCubit? _scheduleCubit;
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription<String>? _tapSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    final notifications = getIt<NotificationService>();
+    _tapSubscription = notifications.onNotificationTap.listen(_handlePayload);
+
+    // Приложение могло быть полностью убито и запущено именно тапом по
+    // уведомлению — такой payload стрим тапов не увидит, у него отдельный
+    // путь. Проверяем один раз, как только появится Navigator.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final payload = await notifications.consumeLaunchPayload();
+      if (payload != null) _handlePayload(payload);
+    });
+  }
+
+  void _handlePayload(String payload) {
+    final context = _navigatorKey.currentContext;
+    if (context == null) return;
+    NotificationRouter.handle(context, payload);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _tapSubscription?.cancel();
     super.dispose();
   }
 
@@ -91,6 +115,7 @@ class _RaspisanieAppState extends State<RaspisanieApp>
             final useDynamic = settings.useDynamicColor;
 
             return MaterialApp(
+              navigatorKey: _navigatorKey,
               title: 'Расписание',
               debugShowCheckedModeBanner: false,
               themeMode: settings.themeMode,

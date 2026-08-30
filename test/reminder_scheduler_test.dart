@@ -199,6 +199,7 @@ void main() {
     test('содержит время звонка и остаток', () {
       final reminder = LessonReminder(
         when: _anyTime,
+        date: _anyTime,
         bellTime: '10:10',
         minutesBefore: 15,
         subject: 'Компьютерные сети',
@@ -216,6 +217,7 @@ void main() {
     test('замена помечается в заголовке', () {
       final reminder = LessonReminder(
         when: _anyTime,
+        date: _anyTime,
         bellTime: '08:30',
         minutesBefore: 1,
         subject: 'Физика',
@@ -230,6 +232,7 @@ void main() {
     test('склонение для 2, 5 и 21 минуты', () {
       String bodyFor(int minutes) => LessonReminder(
             when: _anyTime,
+            date: _anyTime,
             bellTime: '08:30',
             minutesBefore: minutes,
             subject: 'Физика',

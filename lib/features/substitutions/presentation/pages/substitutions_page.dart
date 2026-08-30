@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/database/database.dart';
+import '../../../../core/settings/app_settings.dart';
 import '../../../../core/utils/week_utils.dart';
 import '../../../../di.dart';
+import '../../../schedule/domain/entities/schedule_slot.dart';
+import '../../../schedule/domain/repositories/schedule_repository.dart';
 import '../../domain/repositories/substitutions_repository.dart';
 import '../bloc/substitutions_cubit.dart';
+import '../widgets/last_updated_line.dart';
 
 /// Все замены на выбранную дату — по всем группам.
 class SubstitutionsPage extends StatefulWidget {
@@ -51,7 +55,7 @@ class _SubstitutionsPageState extends State<SubstitutionsPage> {
       ),
       body: Column(
         children: [
-          const _LastUpdatedLine(),
+          const LastUpdatedLine(),
           Expanded(
             child: StreamBuilder<List<Substitution>>(
               stream: repository.watchOnDate(_date),
@@ -61,7 +65,7 @@ class _SubstitutionsPageState extends State<SubstitutionsPage> {
                 }
                 final items = snapshot.data ?? const <Substitution>[];
                 if (items.isEmpty) return const _EmptyView();
-                return _GroupedList(items: items);
+                return _GroupedList(items: items, date: _date);
               },
             ),
           ),
@@ -78,13 +82,16 @@ class _SubstitutionsPageState extends State<SubstitutionsPage> {
 }
 
 class _GroupedList extends StatelessWidget {
-  const _GroupedList({required this.items});
+  const _GroupedList({required this.items, required this.date});
 
   final List<Substitution> items;
+  final DateTime date;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final myGroup = getIt<AppSettings>().selectedGroup;
+
     final groups = <String, List<Substitution>>{};
     for (final item in items) {
       groups.putIfAbsent(item.groupName, () => []).add(item);
@@ -104,13 +111,188 @@ class _GroupedList extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name, style: theme.textTheme.titleMedium),
+              Row(
+                children: [
+                  Text(name, style: theme.textTheme.titleMedium),
+                  if (name == myGroup) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'моя',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
               const SizedBox(height: 8),
-              for (final row in rows) _SubstitutionRow(row: row),
+              // Для своей группы известно базовое расписание — можно
+              // показать «было → стало». У чужих групп его нет: их
+              // schedule никто не импортировал на этом телефоне.
+              if (name == myGroup)
+                _MyGroupChanges(date: date, groupName: name)
+              else
+                for (final row in rows) _SubstitutionRow(row: row),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// «Было → стало» для группы пользователя — переиспользует тот же
+/// merge, что и главный экран, только без фильтра по подгруппе.
+class _MyGroupChanges extends StatelessWidget {
+  const _MyGroupChanges({required this.date, required this.groupName});
+
+  final DateTime date;
+  final String groupName;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = getIt<AppSettings>();
+
+    return StreamBuilder<DaySchedule>(
+      stream: getIt<ScheduleRepository>().watchDay(
+        groupName: groupName,
+        date: date,
+        invertWeekParity: settings.invertWeekParity,
+      ),
+      builder: (context, snapshot) {
+        final day = snapshot.data;
+        if (day == null) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+
+        final changes = day.slots.where((s) => s.isSubstitution).toList();
+        if (changes.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          children: [
+            for (final slot in changes) _ChangeRow(slot: slot),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ChangeRow extends StatelessWidget {
+  const _ChangeRow({required this.slot});
+
+  final ScheduleSlot slot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final accent = slot.isCancelled ? scheme.error : scheme.tertiary;
+
+    final hadOriginal =
+        !slot.isExtra && slot.originalSubject != null && !slot.isCancelled;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${slot.pairNumber}',
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(color: accent, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (slot.isCancelled)
+                  Text('Пара снята',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: scheme.error,
+                      ))
+                else if (hadOriginal && slot.originalSubject != slot.subject)
+                  Text.rich(
+                    TextSpan(children: [
+                      TextSpan(
+                        text: slot.originalSubject,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                      const TextSpan(text: '  →  '),
+                      TextSpan(
+                        text: slot.subject,
+                        style: theme.textTheme.bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ]),
+                  )
+                else
+                  Text(
+                    slot.subject,
+                    style: theme.textTheme.bodyLarge
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                if (!slot.isCancelled) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    [
+                      if (slot.teacher.isNotEmpty) slot.teacher,
+                      if (slot.room.isNotEmpty) 'ауд. ${slot.room}',
+                    ].join(' · '),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+                if (slot.isExtra)
+                  Text('добавлена',
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: accent)),
+                if (slot.note != null && slot.note!.isNotEmpty)
+                  Text(slot.note!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -186,57 +368,6 @@ class _SubstitutionRow extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _LastUpdatedLine extends StatelessWidget {
-  const _LastUpdatedLine();
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<SubstitutionsCubit, SubstitutionsState>(
-      builder: (context, state) {
-        final theme = Theme.of(context);
-        final updated = state.lastUpdated;
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          child: Row(
-            children: [
-              if (state.status == RefreshStatus.loading)
-                const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                Icon(Icons.schedule,
-                    size: 14, color: theme.colorScheme.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  updated == null
-                      ? 'Замены ещё не загружались'
-                      : 'Обновлено ${_formatTime(updated)}',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  static String _formatTime(DateTime value) {
-    final now = DateTime.now();
-    final time = '${value.hour.toString().padLeft(2, '0')}:'
-        '${value.minute.toString().padLeft(2, '0')}';
-    if (WeekUtils.dayKey(value) == WeekUtils.dayKey(now)) {
-      return 'сегодня в $time';
-    }
-    return '${value.day} ${WeekUtils.monthsGenitive[value.month - 1]} в $time';
   }
 }
 

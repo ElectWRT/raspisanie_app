@@ -95,6 +95,7 @@ Future<bool> runBackgroundRefresh() async {
             count: count,
             group: settings.selectedGroup,
           ),
+          payload: NotificationPayload.forSubstitutions(report.date),
         );
         return true;
       },

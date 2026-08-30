@@ -14,6 +14,7 @@ import '../../../settings/presentation/backup_page.dart';
 import '../../../settings/presentation/settings_page.dart';
 import '../../../substitutions/presentation/bloc/substitutions_cubit.dart';
 import '../../../substitutions/presentation/pages/substitutions_page.dart';
+import '../../../substitutions/presentation/widgets/last_updated_line.dart';
 import '../../domain/entities/bell_schedule.dart';
 import '../../domain/repositories/schedule_repository.dart';
 import '../../domain/entities/schedule_slot.dart';
@@ -72,6 +73,9 @@ class HomePage extends StatelessWidget {
                   substitutionDays: state.substitutionWeekdays,
                 ),
                 const _RefreshBanner(),
+                const LastUpdatedLine(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                ),
                 Expanded(child: _DayBody(state: state, settings: settings)),
               ],
             ),

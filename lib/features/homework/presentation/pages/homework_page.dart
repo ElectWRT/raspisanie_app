@@ -9,10 +9,13 @@ import '../bloc/homework_cubit.dart';
 import '../widgets/homework_editor_sheet.dart';
 
 class HomeworkPage extends StatelessWidget {
-  const HomeworkPage({super.key, this.subjects = const []});
+  const HomeworkPage({super.key, this.subjects = const [], this.highlightId});
 
   /// Предметы из расписания — подсказки в редакторе.
   final List<String> subjects;
+
+  /// Задание, открытое по тапу на уведомление — подсвечивается в списке.
+  final int? highlightId;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +48,11 @@ class HomeworkPage extends StatelessWidget {
               _ErrorView(message: message),
             HomeworkState(items: final items) when items.isEmpty =>
               const _EmptyView(),
-            _ => _HomeworkList(state: state, subjects: subjects),
+            _ => _HomeworkList(
+                state: state,
+                subjects: subjects,
+                highlightId: highlightId,
+              ),
           },
         );
       },
@@ -84,10 +91,15 @@ class HomeworkPage extends StatelessWidget {
 }
 
 class _HomeworkList extends StatelessWidget {
-  const _HomeworkList({required this.state, required this.subjects});
+  const _HomeworkList({
+    required this.state,
+    required this.subjects,
+    this.highlightId,
+  });
 
   final HomeworkState state;
   final List<String> subjects;
+  final int? highlightId;
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +138,7 @@ class _HomeworkList extends StatelessWidget {
                   item: item,
                   subjects: subjects,
                   now: now,
+                  highlighted: item.id == highlightId,
                 )
                     .animate(delay: Duration(milliseconds: 30 * cardIndex++))
                     .fadeIn(duration: 220.ms, curve: Curves.easeOut)
@@ -188,11 +201,15 @@ class _HomeworkCard extends StatelessWidget {
     required this.item,
     required this.subjects,
     required this.now,
+    this.highlighted = false,
   });
 
   final Homework item;
   final List<String> subjects;
   final DateTime now;
+
+  /// Открыто по тапу на уведомление — выделяем, чтобы сразу нашли глазами.
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -201,15 +218,20 @@ class _HomeworkCard extends StatelessWidget {
     final accent = item.priority.color(scheme);
 
     return Card(
-      color: item.isDone
-          ? scheme.surfaceContainerLowest
-          : scheme.surfaceContainerLow,
+      color: highlighted
+          ? scheme.primaryContainer.withValues(alpha: 0.45)
+          : item.isDone
+              ? scheme.surfaceContainerLowest
+              : scheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: item.isDone
-              ? scheme.outlineVariant
-              : accent.withValues(alpha: 0.45),
+          color: highlighted
+              ? scheme.primary
+              : item.isDone
+                  ? scheme.outlineVariant
+                  : accent.withValues(alpha: 0.45),
+          width: highlighted ? 1.6 : 1,
         ),
       ),
       child: InkWell(

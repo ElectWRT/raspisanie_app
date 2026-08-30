@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -10,6 +11,34 @@ abstract class PendingReminder {
   DateTime get when;
   String get title;
   String get body;
+
+  /// Куда вести при нажатии. Формат `тип:данные`, разбирается
+  /// в NotificationRouter — так тап открывает нужный день или задание,
+  /// а не просто выкидывает на главный экран.
+  String get payload;
+}
+
+/// Ключи типов в payload уведомлений — общие для конструирования
+/// и разбора, чтобы не разъехались при правке.
+class NotificationPayload {
+  const NotificationPayload._();
+
+  static const lessonType = 'lesson';
+  static const homeworkType = 'homework';
+  static const substitutionsType = 'substitutions';
+
+  static String forLesson(DateTime date) =>
+      '$lessonType:${_dateOnly(date)}';
+
+  static String forHomework(int id) => '$homeworkType:$id';
+
+  static String forSubstitutions(DateTime date) =>
+      '$substitutionsType:${_dateOnly(date)}';
+
+  static String _dateOnly(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 }
 
 /// Одно запланированное напоминание о паре.
@@ -17,6 +46,9 @@ class LessonReminder implements PendingReminder {
   /// Момент, когда показать уведомление.
   @override
   final DateTime when;
+
+  /// День, к которому относится пара — по нему открывается день при тапе.
+  final DateTime date;
 
   /// Время звонка, «10:10».
   final String bellTime;
@@ -34,6 +66,7 @@ class LessonReminder implements PendingReminder {
 
   const LessonReminder({
     required this.when,
+    required this.date,
     required this.bellTime,
     required this.minutesBefore,
     required this.subject,
@@ -42,6 +75,9 @@ class LessonReminder implements PendingReminder {
     this.teacher = '',
     this.isSubstitution = false,
   });
+
+  @override
+  String get payload => NotificationPayload.forLesson(date);
 
   @override
   String get title {
@@ -75,6 +111,9 @@ class HomeworkReminder implements PendingReminder {
   @override
   final DateTime when;
 
+  /// id задания в базе — по нему открывается конкретная карточка при тапе.
+  final int homeworkId;
+
   final String subject;
   final String description;
 
@@ -86,11 +125,15 @@ class HomeworkReminder implements PendingReminder {
 
   const HomeworkReminder({
     required this.when,
+    required this.homeworkId,
     required this.subject,
     required this.description,
     required this.daysLeft,
     required this.priorityLabel,
   });
+
+  @override
+  String get payload => NotificationPayload.forHomework(homeworkId);
 
   @override
   String get title => 'Домашка · $subject';
@@ -140,6 +183,12 @@ class NotificationService {
   /// должны ждать одну и ту же инициализацию, а не запускать вторую.
   Future<void>? _initFuture;
 
+  /// Тапы по уведомлению, пока процесс приложения жив (включая фон).
+  /// Для запуска приложения тапом из полностью убитого состояния этот
+  /// стрим не сработает — за это отвечает [consumeLaunchPayload].
+  final _tapController = StreamController<String>.broadcast();
+  Stream<String> get onNotificationTap => _tapController.stream;
+
   static NotificationService create() =>
       NotificationService(FlutterLocalNotificationsPlugin());
 
@@ -164,11 +213,30 @@ class NotificationService {
             settings: const InitializationSettings(
               android: AndroidInitializationSettings('@mipmap/ic_launcher'),
             ),
+            onDidReceiveNotificationResponse: (response) {
+              final payload = response.payload;
+              if (payload != null) _tapController.add(payload);
+            },
           )
           .timeout(const Duration(seconds: 5));
     } catch (_) {
       // Уведомления не заработают, но экран расписания должен открыться.
     }
+  }
+
+  /// Payload уведомления, которым приложение было запущено из полностью
+  /// убитого состояния — есть только один раз, сразу после старта.
+  Future<String?> consumeLaunchPayload() async {
+    await init();
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp ?? false) {
+        return details?.notificationResponse?.payload;
+      }
+    } catch (_) {
+      // Не критично: просто откроется главный экран как обычно.
+    }
+    return null;
   }
 
   /// Спрашивает разрешение на уведомления (Android 13+).
@@ -210,6 +278,7 @@ class NotificationService {
         id: scheduled,
         title: reminder.title,
         body: reminder.body,
+        payload: reminder.payload,
         scheduledDate: tz.TZDateTime.from(reminder.when, tz.local),
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
@@ -251,12 +320,14 @@ class NotificationService {
   Future<void> showSubstitutionAlert({
     required String title,
     required String body,
+    String? payload,
   }) async {
     await init();
     await _plugin.show(
       id: _alertIdBase + 1,
       title: title,
       body: body,
+      payload: payload,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _alertChannelId,
