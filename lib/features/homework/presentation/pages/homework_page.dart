@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/database/database.dart';
@@ -93,6 +94,10 @@ class _HomeworkList extends StatelessWidget {
     final now = DateTime.now();
     final groups = _groupByDue(state.items, now);
 
+    // Сквозной счётчик для задержки анимации — так карточки появляются
+    // по порядку сверху вниз, а не пачкой по группам.
+    var cardIndex = 0;
+
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       itemCount: groups.length,
@@ -115,12 +120,21 @@ class _HomeworkList extends StatelessWidget {
             ),
             for (final item in entry.items)
               Padding(
+                key: ValueKey('hw-${item.id}'),
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _HomeworkCard(
                   item: item,
                   subjects: subjects,
                   now: now,
-                ),
+                )
+                    .animate(delay: Duration(milliseconds: 30 * cardIndex++))
+                    .fadeIn(duration: 220.ms, curve: Curves.easeOut)
+                    .slideY(
+                      begin: 0.08,
+                      end: 0,
+                      duration: 220.ms,
+                      curve: Curves.easeOut,
+                    ),
               ),
           ],
         );

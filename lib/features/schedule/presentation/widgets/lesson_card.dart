@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../domain/entities/schedule_slot.dart';
 
@@ -13,6 +14,7 @@ class LessonCard extends StatelessWidget {
     this.isNow = false,
     this.isPast = false,
     this.homeworkCount = 0,
+    this.entranceIndex,
   });
 
   final ScheduleSlot slot;
@@ -30,6 +32,10 @@ class LessonCard extends StatelessWidget {
   /// Сколько незакрытых заданий по этому предмету.
   final int homeworkCount;
 
+  /// Позиция в списке — только для лёгкой задержки входной анимации.
+  /// null отключает анимацию появления (например, в превью настроек).
+  final int? entranceIndex;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -43,15 +49,20 @@ class LessonCard extends StatelessWidget {
 
     final padding = compact ? 11.0 : 14.0;
 
-    final card = Card(
-      color: isNow
-          ? scheme.primaryContainer.withValues(alpha: 0.55)
-          : slot.isSubstitution
-              ? accent.withValues(alpha: 0.06)
-              : scheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
+    // AnimatedContainer, а не Card: когда пара становится текущей
+    // (тикает таймер каждые 30 секунд), подсветка должна проступать плавно,
+    // а не переключаться скачком.
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: isNow
+            ? scheme.primaryContainer.withValues(alpha: 0.55)
+            : slot.isSubstitution
+                ? accent.withValues(alpha: 0.06)
+                : scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
+        border: Border.all(
           color: isNow
               ? scheme.primary
               : slot.isSubstitution
@@ -147,8 +158,26 @@ class LessonCard extends StatelessWidget {
       ),
     );
 
-    if (!isPast) return card;
-    return Opacity(opacity: 0.45, child: card);
+    // Прошедшая пара гаснет плавно, а не скачком — та же причина, что и
+    // выше: тикает таймер, а не действие пользователя.
+    final faded = AnimatedOpacity(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      opacity: isPast ? 0.45 : 1,
+      child: card,
+    );
+
+    final index = entranceIndex;
+    if (index == null) return faded;
+
+    // Появление списка при открытии дня или свайпе между днями.
+    // flutter_animate играет один раз при монтировании виджета — переключение
+    // дня создаёт новые элементы ListView, так что анимация естественно
+    // повторяется для каждого дня.
+    return faded
+        .animate(delay: Duration(milliseconds: 30 * index))
+        .fadeIn(duration: 220.ms, curve: Curves.easeOut)
+        .slideY(begin: 0.08, end: 0, duration: 220.ms, curve: Curves.easeOut);
   }
 }
 

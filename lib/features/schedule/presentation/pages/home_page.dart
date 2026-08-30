@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/settings/app_settings.dart';
@@ -9,6 +10,7 @@ import '../../../../core/utils/week_utils.dart';
 import '../../../../di.dart';
 import '../../../homework/presentation/bloc/homework_cubit.dart';
 import '../../../homework/presentation/pages/homework_page.dart';
+import '../../../settings/presentation/backup_page.dart';
 import '../../../settings/presentation/settings_page.dart';
 import '../../../substitutions/presentation/bloc/substitutions_cubit.dart';
 import '../../../substitutions/presentation/pages/substitutions_page.dart';
@@ -109,13 +111,20 @@ class HomePage extends StatelessWidget {
     }
   }
 
-  static Future<void> _openSettings(BuildContext context) async {
-    final scheduleCubit = context.read<ScheduleCubit>();
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsPage()),
-    );
-    await scheduleCubit.reload();
-  }
+  static Future<void> _openSettings(BuildContext context) => openSettings(context);
+}
+
+/// Открывает настройки и перечитывает расписание после возврата.
+///
+/// Общая точка входа: до импорта расписания настройки доступны только
+/// отсюда — без этого добраться до резервной копии для восстановления
+/// было бы нечем, кроме как сначала вслепую импортировать файл.
+Future<void> openSettings(BuildContext context) async {
+  final scheduleCubit = context.read<ScheduleCubit>();
+  await Navigator.of(context).push(
+    MaterialPageRoute(builder: (_) => const SettingsPage()),
+  );
+  await scheduleCubit.reload();
 }
 
 /// Список пар на день. Держит таймер, чтобы отметка «сейчас» не устаревала.
@@ -197,7 +206,11 @@ class _DayBodyState extends State<_DayBody> {
       separatorBuilder: (_, __) => SizedBox(height: compact ? 8 : 10),
       itemBuilder: (context, index) {
         if (index == 0) {
-          return _DaySummary(day: day, bells: widget.state.activeBells);
+          return _DaySummary(
+            key: ValueKey('summary-${day.date}'),
+            day: day,
+            bells: widget.state.activeBells,
+          ).animate().fadeIn(duration: 200.ms);
         }
 
         final slot = day.slots[index - 1];
@@ -205,12 +218,14 @@ class _DayBodyState extends State<_DayBody> {
         final highlight = settings.highlightCurrentLesson && isToday;
 
         return LessonCard(
+          key: ValueKey('${day.date}-${slot.pairNumber}-${slot.subgroup}'),
           slot: slot,
           bell: bell,
           compact: compact,
           isNow: highlight && (bell?.isNow(_now, day.date) ?? false),
           isPast: highlight && (bell?.isPast(_now, day.date) ?? false),
           homeworkCount: counts[slot.subject.toLowerCase()] ?? 0,
+          entranceIndex: index - 1,
         );
       },
     );
@@ -219,7 +234,7 @@ class _DayBodyState extends State<_DayBody> {
 
 /// Строка-сводка над списком: сколько пар, во сколько начало и конец.
 class _DaySummary extends StatelessWidget {
-  const _DaySummary({required this.day, required this.bells});
+  const _DaySummary({super.key, required this.day, required this.bells});
 
 
   final DaySchedule day;
@@ -417,10 +432,16 @@ class _EmptyDayView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 64),
       children: [
         Icon(
+          key: ValueKey('empty-icon-$date'),
           isWeekend ? Icons.weekend_outlined : Icons.event_available_outlined,
           size: 56,
           color: theme.colorScheme.outline,
-        ),
+        ).animate().fadeIn(duration: 260.ms).scale(
+              begin: const Offset(0.85, 0.85),
+              end: const Offset(1, 1),
+              duration: 260.ms,
+              curve: Curves.easeOut,
+            ),
         const SizedBox(height: 16),
         Text(
           isWeekend ? 'Выходной' : 'В этот день пар нет',
@@ -447,7 +468,16 @@ class _NoScheduleView extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Расписание')),
+      appBar: AppBar(
+        title: const Text('Расписание'),
+        actions: [
+          IconButton(
+            tooltip: 'Настройки',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => openSettings(context),
+          ),
+        ],
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -474,6 +504,12 @@ class _NoScheduleView extends StatelessWidget {
                 icon: const Icon(Icons.add),
                 label: const Text('Импортировать расписание'),
               ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => _openBackup(context),
+                icon: const Icon(Icons.restore_outlined, size: 18),
+                label: const Text('Восстановить из резервной копии'),
+              ),
             ],
           ),
         ),
@@ -485,6 +521,14 @@ class _NoScheduleView extends StatelessWidget {
     final cubit = context.read<ScheduleCubit>();
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ImportSchedulePage()),
+    );
+    await cubit.reload();
+  }
+
+  Future<void> _openBackup(BuildContext context) async {
+    final cubit = context.read<ScheduleCubit>();
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const BackupPage()),
     );
     await cubit.reload();
   }
