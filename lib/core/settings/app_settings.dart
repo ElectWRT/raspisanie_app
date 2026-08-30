@@ -240,6 +240,102 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Настройки для резервной копии. Не включает выбранную группу и
+  /// подгруппу: они привязаны к расписанию, которое бэкап восстанавливает
+  /// отдельно, и их некорректно тащить в файл вслепую.
+  Map<String, dynamic> exportForBackup() => {
+        'invertWeekParity': invertWeekParity,
+        'themeMode': themeMode.name,
+        'accentId': accentId,
+        'useDynamicColor': useDynamicColor,
+        'amoledDark': amoledDark,
+        'textScale': textScale,
+        'compactCards': compactCards,
+        'showWeekends': showWeekends,
+        'highlightCurrentLesson': highlightCurrentLesson,
+        'notificationsEnabled': notificationsEnabled,
+        'reminderMinutes': reminderMinutes,
+        'exactAlarms': exactAlarms,
+        'homeworkReminders': homeworkReminders,
+        'homeworkDaysBefore': homeworkDaysBefore,
+        'homeworkReminderHour': homeworkReminderHour,
+        'backgroundRefreshEnabled': backgroundRefreshEnabled,
+        'backgroundRefreshHours': backgroundRefreshHours,
+        'sourcePageUrl': sourcePageUrl,
+        'manualLink': manualLink,
+        'autoRefreshOnLaunch': autoRefreshOnLaunch,
+      };
+
+  /// Восстанавливает настройки из резервной копии. Пропускает ключи,
+  /// которых нет в файле, — так старые бэкапы не роняют импорт после
+  /// того, как в приложении появятся новые настройки.
+  Future<void> importFromBackup(Map<String, dynamic> data) async {
+    bool? asBool(String key) => data[key] as bool?;
+    int? asInt(String key) => (data[key] as num?)?.toInt();
+    double? asDouble(String key) => (data[key] as num?)?.toDouble();
+    String? asString(String key) => data[key] as String?;
+
+    if (data.containsKey('invertWeekParity')) {
+      await setInvertWeekParity(asBool('invertWeekParity') ?? false);
+    }
+    final themeName = asString('themeMode');
+    if (themeName != null) {
+      await setThemeMode(ThemeMode.values.firstWhere(
+        (m) => m.name == themeName,
+        orElse: () => ThemeMode.system,
+      ));
+    }
+    final accent = asString('accentId');
+    if (accent != null) await setAccentId(accent);
+    if (data.containsKey('useDynamicColor')) {
+      await setUseDynamicColor(asBool('useDynamicColor') ?? false);
+    }
+    if (data.containsKey('amoledDark')) {
+      await setAmoledDark(asBool('amoledDark') ?? false);
+    }
+    final scale = asDouble('textScale');
+    if (scale != null) await setTextScale(scale);
+    if (data.containsKey('compactCards')) {
+      await setCompactCards(asBool('compactCards') ?? false);
+    }
+    if (data.containsKey('showWeekends')) {
+      await setShowWeekends(asBool('showWeekends') ?? true);
+    }
+    if (data.containsKey('highlightCurrentLesson')) {
+      await setHighlightCurrentLesson(
+          asBool('highlightCurrentLesson') ?? true);
+    }
+    if (data.containsKey('notificationsEnabled')) {
+      await setNotificationsEnabled(asBool('notificationsEnabled') ?? false);
+    }
+    final minutes = asInt('reminderMinutes');
+    if (minutes != null) await setReminderMinutes(minutes);
+    if (data.containsKey('exactAlarms')) {
+      await setExactAlarms(asBool('exactAlarms') ?? false);
+    }
+    if (data.containsKey('homeworkReminders')) {
+      await setHomeworkReminders(asBool('homeworkReminders') ?? true);
+    }
+    final hwDays = asInt('homeworkDaysBefore');
+    if (hwDays != null) await setHomeworkDaysBefore(hwDays);
+    final hwHour = asInt('homeworkReminderHour');
+    if (hwHour != null) await setHomeworkReminderHour(hwHour);
+    if (data.containsKey('backgroundRefreshEnabled')) {
+      await setBackgroundRefreshEnabled(
+          asBool('backgroundRefreshEnabled') ?? false);
+    }
+    final bgHours = asInt('backgroundRefreshHours');
+    if (bgHours != null) await setBackgroundRefreshHours(bgHours);
+    final pageUrl = asString('sourcePageUrl');
+    if (pageUrl != null) await setSourcePageUrl(pageUrl);
+    if (data.containsKey('manualLink')) {
+      await setManualLink(asString('manualLink'));
+    }
+    if (data.containsKey('autoRefreshOnLaunch')) {
+      await setAutoRefreshOnLaunch(asBool('autoRefreshOnLaunch') ?? true);
+    }
+  }
+
   /// Сбрасывает только внешний вид, не трогая расписание и источники.
   Future<void> resetAppearance() async {
     await Future.wait([

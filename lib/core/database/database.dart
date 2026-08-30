@@ -247,6 +247,80 @@ class AppDatabase extends _$AppDatabase {
         .go();
   }
 
+  // ---------------------------------------------------------------- Backup
+
+  /// Всё, что относится к расписанию: базовые пары, замены, домашка и
+  /// служебные записи (в том числе звонки — они лежат в AppMeta). Настройки
+  /// (SharedPreferences) сюда не входят — их добавляет BackupService.
+  Future<Map<String, dynamic>> exportAllTables() async {
+    final lessonRows = await select(lessons).get();
+    final substitutionRows = await select(substitutions).get();
+    final homeworkRows = await select(homeworks).get();
+    final metaRows = await select(appMeta).get();
+
+    return {
+      'lessons': lessonRows.map((r) => r.toJson()).toList(),
+      'substitutions': substitutionRows.map((r) => r.toJson()).toList(),
+      'homeworks': homeworkRows.map((r) => r.toJson()).toList(),
+      'appMeta': metaRows.map((r) => r.toJson()).toList(),
+    };
+  }
+
+  /// Заменяет все данные на те, что в резервной копии. Текущие пары,
+  /// замены, домашка и звонки стираются безвозвратно.
+  Future<void> importAllTables(Map<String, dynamic> data) async {
+    await transaction(() async {
+      await delete(lessons).go();
+      await delete(substitutions).go();
+      await delete(homeworks).go();
+      await delete(appMeta).go();
+
+      final lessonRows = _decodeList(data['lessons'], Lesson.fromJson);
+      if (lessonRows.isNotEmpty) {
+        await batch((b) => b.insertAll(
+              lessons,
+              lessonRows.map((r) => r.toCompanion(true)),
+            ));
+      }
+
+      final substitutionRows =
+          _decodeList(data['substitutions'], Substitution.fromJson);
+      if (substitutionRows.isNotEmpty) {
+        await batch((b) => b.insertAll(
+              substitutions,
+              substitutionRows.map((r) => r.toCompanion(true)),
+            ));
+      }
+
+      final homeworkRows = _decodeList(data['homeworks'], Homework.fromJson);
+      if (homeworkRows.isNotEmpty) {
+        await batch((b) => b.insertAll(
+              homeworks,
+              homeworkRows.map((r) => r.toCompanion(true)),
+            ));
+      }
+
+      final metaRows = _decodeList(data['appMeta'], AppMetaData.fromJson);
+      if (metaRows.isNotEmpty) {
+        await batch((b) => b.insertAll(
+              appMeta,
+              metaRows.map((r) => r.toCompanion(true)),
+            ));
+      }
+    });
+  }
+
+  static List<T> _decodeList<T>(
+    dynamic raw,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    final list = raw as List?;
+    if (list == null) return const [];
+    return list
+        .map((e) => fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
   // ---------------------------------------------------------------- AppMeta
 
   Future<String?> getMeta(String key) async {

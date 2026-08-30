@@ -7,6 +7,7 @@ import 'core/database/database.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/notifications/reminder_scheduler.dart';
 import 'core/settings/app_settings.dart';
+import 'core/backup/backup_service.dart';
 import 'features/homework/data/repositories/homework_repository_impl.dart';
 import 'features/homework/domain/repositories/homework_repository.dart';
 import 'features/schedule/data/datasources/markdown_schedule_parser.dart';
@@ -55,6 +56,12 @@ Future<void> setupDependencies() async {
     )
     ..registerLazySingleton<HomeworkRepository>(
       () => HomeworkRepositoryImpl(getIt<AppDatabase>()),
+    )
+    ..registerLazySingleton<BackupService>(
+      () => BackupService(
+        database: getIt<AppDatabase>(),
+        settings: getIt<AppSettings>(),
+      ),
     )
     ..registerSingleton<NotificationService>(NotificationService.create())
     ..registerLazySingleton<ReminderScheduler>(

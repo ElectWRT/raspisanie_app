@@ -17,6 +17,7 @@ import '../../substitutions/domain/repositories/substitutions_repository.dart';
 import '../../substitutions/presentation/bloc/substitutions_cubit.dart';
 import '../../substitutions/presentation/pages/parse_diagnostics_page.dart';
 import 'about_page.dart';
+import 'backup_page.dart';
 import 'widgets/settings_widgets.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -598,6 +599,15 @@ class _SettingsPageState extends State<SettingsPage> {
   List<Widget> _dataSection() {
     return [
       const SectionHeader('Данные', icon: Icons.storage_outlined),
+      ListTile(
+        leading: const Icon(Icons.backup_outlined),
+        title: const Text('Резервная копия'),
+        subtitle: const Text('Сохранить или восстановить всё сразу'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const BackupPage()),
+        ),
+      ),
       ListTile(
         leading: const Icon(Icons.delete_sweep_outlined),
         title: const Text('Удалить загруженные замены'),
