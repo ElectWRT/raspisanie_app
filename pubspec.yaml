@@ -1,7 +1,7 @@
 name: raspisanie_app
 description: "Расписание занятий с автоматическим подтягиванием замен."
 publish_to: 'none'
-version: 1.3.0+7
+version: 1.3.0+8
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -56,6 +56,17 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   build_runner: ^2.4.8
   drift_dev: ^2.16.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/icon/app_icon.png"
+  # Источник уже содержит собственную белую подложку-скруглённый квадрат
+  # с прозрачными углами — используем его и как обычную иконку,
+  # и как foreground adaptive icon с тем же белым фоном.
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  min_sdk_android: 24
