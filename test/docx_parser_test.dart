@@ -57,6 +57,44 @@ void main() {
     expect(result.warnings, isEmpty);
   });
 
+  test('строка-разделитель «2 КУРС» не считается заменой', () {
+    // Так устроены настоящие документы khamk.ru: курсы разделены
+    // строкой с одной заполненной ячейкой.
+    final bytes = buildDocx(
+      paragraphs: const ['Замены на 02.09.2026'],
+      rows: const [
+        ['Группа', 'Пара', 'Предмет', 'Преподаватель', 'Аудитория'],
+        ['2 КУРС', '', '', '', ''],
+        ['ДС-2125', '2', 'Осн.фин.грам', 'Румянцева В.А.', '31'],
+      ],
+    );
+
+    final result = parser.parseBytes(bytes);
+
+    expect(result.items, hasLength(1));
+    expect(result.items.single.groupName, 'ДС-2125');
+    expect(result.warnings, isEmpty, reason: 'разделитель — не ошибка');
+  });
+
+  test('разделитель курса не подставляется как группа в следующую строку', () {
+    // Группа берётся из предыдущей строки, когда ячейка пустая. Если бы
+    // «2 КУРС» запомнился как группа, он протёк бы сюда.
+    final bytes = buildDocx(
+      paragraphs: const ['Замены на 02.09.2026'],
+      rows: const [
+        ['Группа', 'Пара', 'Предмет', 'Преподаватель', 'Аудитория'],
+        ['ДС-2125', '2', 'Физика', 'Иванов И.И.', '31'],
+        ['2 КУРС', '', '', '', ''],
+        ['', '3', 'История', 'Бельды А.А.', '20п'],
+      ],
+    );
+
+    final result = parser.parseBytes(bytes);
+
+    expect(result.items, hasLength(2));
+    expect(result.items.last.groupName, 'ДС-2125');
+  });
+
   test('колонки ищутся по заголовкам, а не по позиции', () {
     final bytes = buildDocx(
       paragraphs: const ['Замены 01.10.2026'],

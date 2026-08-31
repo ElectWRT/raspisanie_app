@@ -14,6 +14,7 @@ class AppSettings extends ChangeNotifier {
   static const _kThemeMode = 'theme_mode';
   static const _kSourcePageUrl = 'source_page_url';
   static const _kManualLink = 'manual_substitutions_link';
+  static const _kBuilding = 'preferred_building';
   static const _kAutoRefresh = 'auto_refresh_on_launch';
   static const _kAccent = 'accent_id';
   static const _kDynamicColor = 'use_dynamic_color';
@@ -105,7 +106,14 @@ class AppSettings extends ChangeNotifier {
   String get sourcePageUrl =>
       _prefs.getString(_kSourcePageUrl) ?? defaultSourcePageUrl;
 
-  /// Прямая ссылка на облако, заданная вручную. Если задана — сайт не парсим.
+  /// Корпус, чьи замены нужны. null — брать любые: на сайте заведения
+  /// замены выкладывают отдельным файлом на каждый корпус.
+  int? get preferredBuilding {
+    final value = _prefs.getInt(_kBuilding);
+    return (value == null || value <= 0) ? null : value;
+  }
+
+  /// Прямая ссылка на файл, заданная вручную. Если задана — сайт не парсим.
   String? get manualLink {
     final value = _prefs.getString(_kManualLink)?.trim();
     return (value == null || value.isEmpty) ? null : value;
@@ -156,6 +164,15 @@ class AppSettings extends ChangeNotifier {
       await _prefs.remove(_kManualLink);
     } else {
       await _prefs.setString(_kManualLink, trimmed);
+    }
+    notifyListeners();
+  }
+
+  Future<void> setPreferredBuilding(int? value) async {
+    if (value == null) {
+      await _prefs.remove(_kBuilding);
+    } else {
+      await _prefs.setInt(_kBuilding, value);
     }
     notifyListeners();
   }
@@ -263,6 +280,7 @@ class AppSettings extends ChangeNotifier {
         'backgroundRefreshHours': backgroundRefreshHours,
         'sourcePageUrl': sourcePageUrl,
         'manualLink': manualLink,
+        'preferredBuilding': preferredBuilding,
         'autoRefreshOnLaunch': autoRefreshOnLaunch,
       };
 
@@ -330,6 +348,9 @@ class AppSettings extends ChangeNotifier {
     if (pageUrl != null) await setSourcePageUrl(pageUrl);
     if (data.containsKey('manualLink')) {
       await setManualLink(asString('manualLink'));
+    }
+    if (data.containsKey('preferredBuilding')) {
+      await setPreferredBuilding(asInt('preferredBuilding'));
     }
     if (data.containsKey('autoRefreshOnLaunch')) {
       await setAutoRefreshOnLaunch(asBool('autoRefreshOnLaunch') ?? true);

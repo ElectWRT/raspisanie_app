@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html;
 
 import '../../../../core/error/exceptions.dart';
@@ -11,10 +12,20 @@ class SourceLink {
   final String url;
   final String title;
 
-  /// Дата, распознанная в тексте ссылки. null — не удалось определить.
+  /// Дата, распознанная в тексте ссылки или в имени файла.
+  /// null — не удалось определить.
   final DateTime? date;
 
-  const SourceLink({required this.url, required this.title, this.date});
+  /// Номер корпуса, если он указан в ссылке: «Корпус № 1» или `_1_frame`
+  /// в имени файла. null — корпус не указан.
+  final int? building;
+
+  const SourceLink({
+    required this.url,
+    required this.title,
+    this.date,
+    this.building,
+  });
 
   bool get isCloudMail => url.contains('cloud.mail.ru');
 
@@ -71,6 +82,28 @@ class SubstitutionsRemoteDataSourceImpl implements SubstitutionsRemoteDataSource
     caseSensitive: false,
   );
 
+  /// Дата в имени файла: `replacements_020926_1_frame.docx` → 02.09.26.
+  /// Ровно шесть цифр подряд, не приклеенных к другим цифрам, — иначе
+  /// сюда попадали бы годы вида `2026-2027` из имён файлов расписания.
+  static final RegExp _fileNameDate =
+      RegExp(r'(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)');
+
+  /// «Корпус № 1» в тексте ссылки.
+  static final RegExp _buildingInText =
+      RegExp(r'корпус\s*№?\s*(\d{1,2})', caseSensitive: false);
+
+  /// `_1_frame` в имени файла.
+  static final RegExp _buildingInUrl =
+      RegExp(r'_(\d{1,2})_frame', caseSensitive: false);
+
+  /// Границы смыслового блока. Выше подниматься нельзя: там уже соседние
+  /// пункты списка, и слово «замены» из чужого пункта припишется этой ссылке.
+  static const _blockTags = {
+    'li', 'p', 'td', 'th', 'div', 'section', 'article', 'body',
+  };
+
+  static const _contextMaxLength = 300;
+
   @override
   Future<List<SourceLink>> findLinks(String pageUrl) async {
     final Response<dynamic> response;
@@ -92,10 +125,10 @@ class SubstitutionsRemoteDataSourceImpl implements SubstitutionsRemoteDataSource
       final href = anchor.attributes['href']!.trim();
       if (href.isEmpty || href.startsWith('#')) continue;
 
-      // Текст самой ссылки часто скупой («скачать»), поэтому берём и
-      // текст ближайшего блока — там обычно и стоит дата.
+      // Текст самой ссылки часто скупой («Корпус № 1», «скачать»),
+      // а слово «замены» стоит в подписи уровнем-двумя выше.
       final anchorText = anchor.text.trim();
-      final contextText = (anchor.parent?.text ?? anchorText).trim();
+      final contextText = _contextFor(anchor);
       if (!_substitutionWord.hasMatch(contextText) &&
           !_substitutionWord.hasMatch(href)) {
         continue;
@@ -104,10 +137,19 @@ class SubstitutionsRemoteDataSourceImpl implements SubstitutionsRemoteDataSource
       final absolute = base.resolve(href).toString();
       if (!seen.add(absolute)) continue;
 
+      // Дата чаще всего не в тексте, а в имени файла — как на khamk.ru,
+      // где подпись «Замены учебных занятий» одна и та же каждый день.
+      final date = parseDate(contextText) ?? parseDateFromUrl(absolute);
+
       links.add(SourceLink(
         url: absolute,
-        title: _collapse(anchorText.isEmpty ? contextText : anchorText),
-        date: parseDate(contextText),
+        title: _collapse(
+          contextText.isEmpty || contextText.length > 120
+              ? anchorText
+              : contextText,
+        ),
+        date: date,
+        building: parseBuilding(anchorText) ?? parseBuilding(absolute),
       ));
     }
 
@@ -226,6 +268,60 @@ class SubstitutionsRemoteDataSourceImpl implements SubstitutionsRemoteDataSource
   }
 
   // ----------------------------------------------------------------- helpers
+
+  /// Подпись к ссылке. Поднимается вверх по разметке, пока не найдёт текст
+  /// со словом «замены».
+  ///
+  /// Одного родителя не хватает: на khamk.ru ссылка обёрнута в собственный
+  /// `<span>`, внутри которого кроме неё ничего нет, а подпись «Замены
+  /// учебных занятий» стоит уровнем выше.
+  static String _contextFor(dom.Element anchor) {
+    var node = anchor.parent;
+    var fallback = anchor.text.trim();
+
+    while (node != null) {
+      final text = node.text.trim();
+      if (text.isNotEmpty) fallback = text;
+
+      // Дошли до абзаца или пункта списка — это и есть подпись к ссылке.
+      // Дальше уже соседние пункты, их текст брать нельзя.
+      if (_blockTags.contains(node.localName?.toLowerCase())) return text;
+
+      if (text.length > _contextMaxLength) break;
+      node = node.parent;
+    }
+
+    return fallback;
+  }
+
+  /// Дата из имени файла: `replacements_020926_1_frame.docx` → 2 сентября 2026.
+  /// Порядок ддММгг — как принято в русских документах.
+  static DateTime? parseDateFromUrl(String url) {
+    for (final match in _fileNameDate.allMatches(url)) {
+      final day = int.parse(match.group(1)!);
+      final month = int.parse(match.group(2)!);
+      final year = 2000 + int.parse(match.group(3)!);
+
+      if (day < 1 || day > 31 || month < 1 || month > 12) continue;
+
+      final date = DateTime(year, month, day);
+      // DateTime молча переносит 31 февраля на март — отбрасываем такое.
+      if (date.day != day || date.month != month) continue;
+      return date;
+    }
+    return null;
+  }
+
+  /// Номер корпуса из «Корпус № 1» или из `_1_frame` в имени файла.
+  static int? parseBuilding(String value) {
+    final byText = _buildingInText.firstMatch(value);
+    if (byText != null) return int.tryParse(byText.group(1)!);
+
+    final byUrl = _buildingInUrl.firstMatch(value);
+    if (byUrl != null) return int.tryParse(byUrl.group(1)!);
+
+    return null;
+  }
 
   /// Ищет дату в тексте: «Замены на 5 сентября» или «Замены 05.09.2026».
   static DateTime? parseDate(String text, {DateTime? now}) {

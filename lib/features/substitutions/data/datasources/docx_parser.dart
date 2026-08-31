@@ -130,6 +130,11 @@ class DocxParser {
       for (var i = layout.firstDataRow; i < rows.length; i++) {
         final cells = rows[i];
 
+        // Строка-разделитель вроде «2 КУРС». Пропускаем молча и, что важнее,
+        // не запоминаем как последнюю группу — иначе её текст протёк бы
+        // в следующую строку, где ячейка группы пустая.
+        if (_isSectionHeader(cells)) continue;
+
         final rawGroup = layout.pick(cells, 'group');
         final group = rawGroup.isNotEmpty ? _cleanGroup(rawGroup) : lastGroup;
         if (group == null || group.isEmpty) {
@@ -260,6 +265,18 @@ class DocxParser {
       }
     }
     return null;
+  }
+
+  /// Разделитель курса внутри таблицы: «2 КУРС», «1 курс».
+  static final RegExp _sectionHeader =
+      RegExp(r'^\d{1,2}\s*курс$', caseSensitive: false);
+
+  /// Строка-заголовок раздела, а не замена: непустая ячейка ровно одна,
+  /// и в ней стоит «N курс».
+  static bool _isSectionHeader(List<String> cells) {
+    final filled = cells.where((c) => c.trim().isNotEmpty).toList();
+    if (filled.length != 1) return false;
+    return _sectionHeader.hasMatch(filled.first.trim());
   }
 
   static String _cleanGroup(String value) {

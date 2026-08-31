@@ -508,6 +508,28 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
       ),
+      ListTile(
+        leading: const Icon(Icons.apartment_outlined),
+        title: const Text('Корпус'),
+        subtitle: const Text(
+          'Замены на каждый корпус выкладывают отдельным файлом',
+        ),
+        trailing: SegmentedButton<int>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: 0, label: Text('Любой')),
+            ButtonSegment(value: 1, label: Text('1')),
+            ButtonSegment(value: 2, label: Text('2')),
+          ],
+          selected: {_settings.preferredBuilding ?? 0},
+          onSelectionChanged: (selection) async {
+            final value = selection.first;
+            await _settings.setPreferredBuilding(value == 0 ? null : value);
+            if (mounted) setState(() {});
+          },
+        ),
+        isThreeLine: true,
+      ),
       SwitchListTile(
         secondary: const Icon(Icons.refresh),
         title: const Text('Обновлять замены при запуске'),

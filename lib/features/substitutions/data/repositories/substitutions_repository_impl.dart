@@ -108,9 +108,21 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
 
   /// Выбирает подходящую ссылку: точное совпадение с нужной датой, иначе
   /// ближайшую будущую, иначе самую свежую из найденных.
-  SourceLink _pickLink(List<SourceLink> links, DateTime? targetDate) {
-    if (links.isEmpty) {
+  SourceLink _pickLink(List<SourceLink> allLinks, DateTime? targetDate) {
+    if (allLinks.isEmpty) {
       throw ParsingException('Ссылки на замены не найдены.');
+    }
+
+    // Замены выкладывают отдельным файлом на каждый корпус. Если корпус
+    // выбран в настройках — берём только его, иначе попадём в чужой.
+    // Ссылки без указания корпуса оставляем: они относятся ко всем.
+    final building = settings.preferredBuilding;
+    var links = allLinks;
+    if (building != null) {
+      final mine = allLinks
+          .where((l) => l.building == null || l.building == building)
+          .toList();
+      if (mine.isNotEmpty) links = mine;
     }
 
     if (targetDate != null) {
