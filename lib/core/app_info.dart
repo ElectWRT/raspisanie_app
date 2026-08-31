@@ -7,4 +7,17 @@ class AppInfo {
   static const version = '1.3.0';
 
   static const repositoryUrl = 'https://github.com/ElectWRT/raspisanie_app';
+
+  static const authorName = 'ElectWRT';
+  static const authorUrl = 'https://github.com/ElectWRT';
+
+  static const organizationName = 'TheSkippersTeam';
+  static const organizationUrl = 'https://github.com/TheSkippersTeam';
+
+  /// Короткая формулировка для экрана «О приложении». Полный текст —
+  /// в файле LICENSE в репозитории.
+  static const licenseNote =
+      'Коммерческое использование запрещено. Приложение можно свободно '
+      'использовать и распространять бесплатно, продавать его или брать '
+      'плату за доступ нельзя.';
 }

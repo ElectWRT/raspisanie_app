@@ -69,5 +69,11 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Нужно url_launcher на Android 11+, иначе canLaunchUrl всегда
+             возвращает false — система скрывает браузеры без этого. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

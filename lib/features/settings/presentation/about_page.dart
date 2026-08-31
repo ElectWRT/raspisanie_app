@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/app_info.dart';
 
@@ -55,22 +56,53 @@ class AboutPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          ListTile(
-            leading: const Icon(Icons.code),
-            title: const Text('Исходный код'),
-            subtitle: const Text(AppInfo.repositoryUrl),
-            trailing: const Icon(Icons.copy, size: 18),
-            onTap: () async {
-              await Clipboard.setData(
-                const ClipboardData(text: AppInfo.repositoryUrl),
-              );
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Ссылка скопирована')),
-                );
-              }
-            },
+          const _LinkTile(
+            icon: Icons.person_outline,
+            title: 'Разработчик',
+            subtitle: AppInfo.authorName,
+            url: AppInfo.authorUrl,
           ),
+          const _LinkTile(
+            icon: Icons.groups_outlined,
+            title: 'Организация на GitHub',
+            subtitle: AppInfo.organizationName,
+            url: AppInfo.organizationUrl,
+          ),
+          const _LinkTile(
+            icon: Icons.code,
+            title: 'Исходный код',
+            subtitle: AppInfo.repositoryUrl,
+            url: AppInfo.repositoryUrl,
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: scheme.errorContainer.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: scheme.error.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.block_outlined, size: 20, color: scheme.error),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      AppInfo.licenseNote,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurface),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           const Divider(),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -86,5 +118,58 @@ class AboutPage extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Строка с внешней ссылкой: тап открывает её в браузере, иконка
+/// справа — копирует адрес в буфер (пригодится, если браузера под рукой
+/// нет — например, чтобы переслать ссылку в мессенджер).
+class _LinkTile extends StatelessWidget {
+  const _LinkTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.url,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: IconButton(
+        tooltip: 'Скопировать ссылку',
+        icon: const Icon(Icons.copy, size: 18),
+        onPressed: () => _copy(context),
+      ),
+      onTap: () => _open(context),
+    );
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uri = Uri.parse(url);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Не удалось открыть ссылку')),
+      );
+    }
+  }
+
+  Future<void> _copy(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(ClipboardData(text: url));
+    if (context.mounted) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Ссылка скопирована')),
+      );
+    }
   }
 }

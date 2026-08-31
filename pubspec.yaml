@@ -1,7 +1,7 @@
 name: raspisanie_app
 description: "Расписание занятий с автоматическим подтягиванием замен."
 publish_to: 'none'
-version: 1.3.0+8
+version: 1.3.0+9
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -49,6 +49,7 @@ dependencies:
   workmanager: ^0.10.9
   crypto: ^3.0.7
   flutter_animate: ^4.5.2
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
