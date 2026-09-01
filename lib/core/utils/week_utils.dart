@@ -63,12 +63,36 @@ class WeekUtils {
     return (diff / 7).floor() + 1;
   }
 
+  /// Начало учебного года, к которому относится дата, — 1 сентября.
+  /// С января по август учебный год начался в предыдущем календарном.
+  static DateTime academicYearStart(DateTime date) =>
+      DateTime(date.month >= 9 ? date.year : date.year - 1, 9, 1);
+
+  /// Номер учебной недели: 1 — та, в которую попало 1 сентября.
+  ///
+  /// Считаем от неподвижной точки, а не по ISO-нумерации. В ISO-году бывает
+  /// 53 недели, и тогда за нечётной 53-й идёт нечётная 1-я — чередование
+  /// числителя со знаменателем ломалось бы на новогодних каникулах и
+  /// оставалось перевёрнутым до конца учебного года.
+  static int academicWeekNumber(DateTime date) {
+    // Разницу считаем в UTC: при переводе часов местные сутки короче,
+    // и неделя дала бы 6 дней вместо 7, сбив счёт.
+    DateTime mondayUtc(DateTime value) {
+      final monday = startOfWeek(value);
+      return DateTime.utc(monday.year, monday.month, monday.day);
+    }
+
+    final days =
+        mondayUtc(date).difference(mondayUtc(academicYearStart(date))).inDays;
+    return days ~/ 7 + 1;
+  }
+
   /// Числитель или знаменатель для даты.
   ///
   /// [invert] переключает, какая неделя считается числителем — в разных
   /// заведениях отсчёт разный, поэтому это настройка, а не константа.
   static WeekType weekTypeFor(DateTime date, {bool invert = false}) {
-    final isOdd = isoWeekNumber(date).isOdd;
+    final isOdd = academicWeekNumber(date).isOdd;
     final numerator = invert ? !isOdd : isOdd;
     return numerator ? WeekType.numerator : WeekType.denominator;
   }

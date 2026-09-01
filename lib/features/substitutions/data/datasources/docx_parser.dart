@@ -65,20 +65,26 @@ class DocxParser {
     'декабр',
   ];
 
-  static const Set<String> _cancelKeywords = {
-    'снять',
-    'снята',
+  /// Признаки отмены, которые сравниваются со словом целиком.
+  ///
+  /// «нет» подстрокой сидит внутри обычных названий предметов —
+  /// «Интер(нет)-технологии», «Ге(нет)ика», — и по вхождению в строку такие
+  /// пары помечались бы снятыми. Поэтому здесь только точное слово.
+  static const Set<String> _cancelWords = {'нет'};
+
+  /// Основы признаков отмены: совпадение по началу слова, чтобы покрыть род
+  /// и падежи — «снят», «снята», «снято», «отменена», «гуляют».
+  /// Эти основы достаточно длинные, чтобы не встретиться внутри предмета.
+  static const Set<String> _cancelStems = {
     'снят',
-    'нет пары',
-    'нет',
-    'отменена',
-    'отменено',
-    'отмена',
-    'гуляют',
-    'гуляет',
-    'свободны',
-    'освобождены',
+    'отмен',
+    'гуля',
+    'свободн',
+    'освобожд',
   };
+
+  /// Границы слов: всё, что не буква и не цифра.
+  static final RegExp _wordBoundary = RegExp(r'[^a-zа-я0-9]+');
 
   // Ключевые слова для распознавания колонок.
   static const Map<String, List<String>> _columnKeywords = {
@@ -301,10 +307,18 @@ class DocxParser {
     return match?.group(1);
   }
 
+  /// Похоже ли, что пару сняли. Разбираем по словам, а не по вхождению
+  /// подстроки: иначе предмет со словом «Интернет» читался бы как «нет».
   static bool _looksCancelled(String value) {
     final normalized = value.toLowerCase().replaceAll('ё', 'е').trim();
     if (normalized.isEmpty) return false;
-    return _cancelKeywords.any(normalized.contains);
+
+    for (final word in normalized.split(_wordBoundary)) {
+      if (word.isEmpty) continue;
+      if (_cancelWords.contains(word)) return true;
+      if (_cancelStems.any(word.startsWith)) return true;
+    }
+    return false;
   }
 
   static String _preview(List<String> cells) {

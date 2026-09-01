@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dartz/dartz.dart';
 
 import '../../../../core/database/database.dart';
@@ -11,6 +12,34 @@ import '../../domain/entities/substitution.dart';
 import '../../domain/repositories/substitutions_repository.dart';
 import '../datasources/docx_parser.dart';
 import '../datasources/substitutions_remote_data_source.dart';
+
+/// Ключ в AppMeta: слепок замен, которые пользователь уже видел — сам в
+/// приложении или в уведомлении о них.
+const notifiedSubstitutionsKey = 'notified_substitutions_signature';
+
+/// Слепок замен на дату. Меняется, если поменялась хоть одна строка.
+///
+/// Порядок строк не влияет: список сортируется перед свёрткой, иначе
+/// уведомление приходило бы после каждой загрузки.
+String substitutionsSignature({
+  required List<Substitution> rows,
+  required DateTime date,
+  String? group,
+}) {
+  final mine = group == null
+      ? rows
+      : rows.where((r) => r.groupName == group).toList();
+
+  final parts = mine
+      .map((r) => '${r.groupName}|${r.pairNumber}|${r.subgroup ?? ''}|'
+          '${r.subject}|${r.teacher}|${r.room}|${r.isCancelled}')
+      .toList()
+    ..sort();
+
+  final payload = '${WeekUtils.dayKey(date).toIso8601String()}::'
+      '${parts.join(';')}';
+  return md5.convert(payload.codeUnits).toString();
+}
 
 class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
   SubstitutionsRepositoryImpl({
@@ -94,6 +123,20 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
       _lastUpdatedKey,
       DateTime.now().toIso8601String(),
     );
+
+    // Слепок пишет любой путь обновления, а не только фоновый. Иначе после
+    // обновления вручную фоновая задача сравнила бы новые замены с давно
+    // устаревшим слепком и прислала уведомление о том, что пользователь
+    // уже прочитал в приложении.
+    await database.setMeta(
+      notifiedSubstitutionsKey,
+      substitutionsSignature(
+        rows: await database.getSubstitutionsOnDate(date),
+        date: date,
+        group: settings.selectedGroup,
+      ),
+    );
+
     await database.purgeOldSubstitutions();
 
     return Right(RefreshReport(

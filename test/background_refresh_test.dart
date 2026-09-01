@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:raspisanie_app/core/background/background_refresh.dart';
 import 'package:raspisanie_app/core/database/database.dart';
+import 'package:raspisanie_app/features/substitutions/data/repositories/substitutions_repository_impl.dart';
 
 void main() {
   final date = DateTime(2026, 9, 15);

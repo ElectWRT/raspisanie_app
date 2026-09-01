@@ -1,4 +1,3 @@
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/widgets.dart';
@@ -16,9 +15,6 @@ import '../utils/week_utils.dart';
 const backgroundRefreshTask = 'refresh-substitutions';
 
 const _uniqueName = 'raspisanie-substitutions-refresh';
-
-/// Ключ в AppMeta: слепок замен, о которых уже сообщили.
-const _notifiedSignatureKey = 'notified_substitutions_signature';
 
 /// Точка входа фонового изолята. Аннотация обязательна: без неё
 /// tree shaking выбросит функцию из release-сборки.
@@ -62,6 +58,11 @@ Future<bool> runBackgroundRefresh() async {
       settings: settings,
     );
 
+    // Читаем слепок до обновления: загрузка сама перезапишет его на новый,
+    // и сравнивать было бы уже не с чем. В нём учтено и то, что
+    // пользователь успел обновить вручную, — о таком не уведомляем.
+    final previous = await database.getMeta(notifiedSubstitutionsKey);
+
     final outcome = await repository.refresh();
 
     return outcome.fold(
@@ -70,16 +71,8 @@ Future<bool> runBackgroundRefresh() async {
       // ретраить с нарастающей задержкой.
       (failure) => true,
       (report) async {
-        final signature = await _signatureFor(
-          database!,
-          date: report.date,
-          group: settings.selectedGroup,
-        );
-
-        final previous = await database.getMeta(_notifiedSignatureKey);
+        final signature = await database!.getMeta(notifiedSubstitutionsKey);
         if (signature == previous) return true;
-
-        await database.setMeta(_notifiedSignatureKey, signature);
 
         final count = await _countFor(
           database,
@@ -107,41 +100,6 @@ Future<bool> runBackgroundRefresh() async {
     await database?.close();
   }
 }
-
-/// Слепок замен на дату. Меняется, если поменялась хоть одна строка.
-///
-/// Порядок строк не влияет: список сортируется перед свёрткой, иначе
-/// уведомление приходило бы после каждой загрузки.
-String substitutionsSignature({
-  required List<Substitution> rows,
-  required DateTime date,
-  String? group,
-}) {
-  final mine = group == null
-      ? rows
-      : rows.where((r) => r.groupName == group).toList();
-
-  final parts = mine
-      .map((r) => '${r.groupName}|${r.pairNumber}|${r.subgroup ?? ''}|'
-          '${r.subject}|${r.teacher}|${r.room}|${r.isCancelled}')
-      .toList()
-    ..sort();
-
-  final payload = '${WeekUtils.dayKey(date).toIso8601String()}::'
-      '${parts.join(';')}';
-  return md5.convert(payload.codeUnits).toString();
-}
-
-Future<String> _signatureFor(
-  AppDatabase database, {
-  required DateTime date,
-  String? group,
-}) async =>
-    substitutionsSignature(
-      rows: await database.getSubstitutionsOnDate(date),
-      date: date,
-      group: group,
-    );
 
 Future<int> _countFor(
   AppDatabase database, {

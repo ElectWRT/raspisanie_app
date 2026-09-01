@@ -31,6 +31,34 @@ void main() {
       expect(first, isNot(next));
     });
 
+    test('чередование не сбивается на Новый год', () {
+      // ISO-год 2026 состоит из 53 недель, поэтому по ISO-нумерации за
+      // нечётной 53-й шла нечётная 1-я и чередование ломалось до конца
+      // учебного года. Учебные недели считаются от 1 сентября и идут подряд.
+      var date = DateTime(2026, 12, 7);
+      var previous = WeekUtils.weekTypeFor(date);
+
+      for (var week = 0; week < 10; week++) {
+        date = date.add(const Duration(days: 7));
+        final current = WeekUtils.weekTypeFor(date);
+        expect(
+          current,
+          isNot(previous),
+          reason: 'на неделе с ${date.day}.${date.month}.${date.year} '
+              'чётность повторилась',
+        );
+        previous = current;
+      }
+    });
+
+    test('учебная неделя считается от 1 сентября', () {
+      expect(WeekUtils.academicWeekNumber(DateTime(2026, 9, 1)), 1);
+      expect(WeekUtils.academicWeekNumber(DateTime(2026, 9, 7)), 2);
+      // Январь относится к учебному году, начавшемуся в прошлом сентябре.
+      expect(WeekUtils.academicYearStart(DateTime(2027, 1, 4)),
+          DateTime(2026, 9, 1));
+    });
+
     test('invert меняет чётность местами', () {
       final date = DateTime(2026, 9, 7);
       expect(

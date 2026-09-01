@@ -158,6 +158,39 @@ void main() {
     expect(item.subject, '');
   });
 
+  test('«нет» внутри названия предмета не отменяет пару', () {
+    final bytes = buildDocx(
+      paragraphs: const ['Замены на 5 сентября'],
+      rows: const [
+        ['Группа', 'Пара', 'Предмет', 'Преподаватель', 'Аудитория'],
+        ['СА-2124', '3', 'Основы Интернет-технологий', 'Иванов И.И.', '301'],
+        ['СА-2125', '4', 'Генетика', 'Петров П.П.', '210'],
+      ],
+    );
+
+    final items = parser.parseBytes(bytes).items;
+
+    expect(
+      items.map((i) => i.isCancelled),
+      everyElement(isFalse),
+      reason: 'подстрока «нет» сидит в «Интернет» и «Генетика»',
+    );
+    expect(items.first.subject, 'Основы Интернет-технологий');
+    expect(items.last.subject, 'Генетика');
+  });
+
+  test('слово «нет» отдельным словом отменяет пару', () {
+    final bytes = buildDocx(
+      paragraphs: const ['Замены на 5 сентября'],
+      rows: const [
+        ['Группа', 'Пара', 'Предмет', 'Преподаватель', 'Аудитория'],
+        ['СА-2124', '4', 'нет пары', '', ''],
+      ],
+    );
+
+    expect(parser.parseBytes(bytes).items.single.isCancelled, isTrue);
+  });
+
   test('номер подгруппы читается из номера пары', () {
     final bytes = buildDocx(
       paragraphs: const ['Замены на 5 сентября'],
