@@ -49,3 +49,4 @@ app.*.map.json
 
 # Локальные заметки — не выкладывать
 /notes/
+/WRITEUP.md
