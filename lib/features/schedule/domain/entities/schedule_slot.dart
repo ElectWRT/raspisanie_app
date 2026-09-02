@@ -27,6 +27,10 @@ class ScheduleSlot extends Equatable {
   final String? note;
   final WeekType weekType;
 
+  /// Группы, с которыми пара идёт совмещённо — тот же преподаватель
+  /// в то же время. Пустой список — пара только для своей группы.
+  final List<String> jointGroups;
+
   const ScheduleSlot({
     required this.pairNumber,
     required this.subject,
@@ -41,7 +45,25 @@ class ScheduleSlot extends Equatable {
     this.originalRoom,
     this.note,
     this.weekType = WeekType.every,
+    this.jointGroups = const [],
   });
+
+  ScheduleSlot withJointGroups(List<String> groups) => ScheduleSlot(
+        pairNumber: pairNumber,
+        subject: subject,
+        subgroup: subgroup,
+        teacher: teacher,
+        room: room,
+        isSubstitution: isSubstitution,
+        isCancelled: isCancelled,
+        isExtra: isExtra,
+        originalSubject: originalSubject,
+        originalTeacher: originalTeacher,
+        originalRoom: originalRoom,
+        note: note,
+        weekType: weekType,
+        jointGroups: groups,
+      );
 
   @override
   List<Object?> get props => [
@@ -58,6 +80,7 @@ class ScheduleSlot extends Equatable {
         originalRoom,
         note,
         weekType,
+        jointGroups,
       ];
 }
 

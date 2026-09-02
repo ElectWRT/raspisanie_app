@@ -10,6 +10,7 @@ import '../../../../core/utils/week_utils.dart';
 import '../../domain/entities/bell_schedule.dart';
 import '../../domain/entities/schedule_slot.dart';
 import '../../domain/repositories/schedule_repository.dart';
+import '../../domain/joint_classes.dart';
 import '../../domain/schedule_merger.dart';
 import '../datasources/markdown_schedule_parser.dart';
 
@@ -34,20 +35,37 @@ class ScheduleRepositoryImpl implements ScheduleRepository {
     final day = WeekUtils.dayKey(date);
     final weekType = WeekUtils.weekTypeFor(day, invert: invertWeekParity);
 
-    return Rx.combineLatest2(
+    return Rx.combineLatest4(
       database.watchLessons(
         groupName: groupName,
         dayOfWeek: day.weekday,
         weekType: weekType,
       ),
       database.watchSubstitutionsFor(groupName: groupName, date: day),
-      (List<Lesson> lessons, List<Substitution> subs) => mergeDaySchedule(
-        date: day,
-        groupName: groupName,
+      // Чужие пары — для поиска совмещённых. Замены приходят по всем
+      // группам сразу: документ у завуча один на всех.
+      database.watchLessonsForAllGroups(
+        dayOfWeek: day.weekday,
         weekType: weekType,
-        lessons: lessons,
-        substitutions: subs,
-        subgroupFilter: subgroup,
+      ),
+      database.watchSubstitutionsOnDate(day),
+      (
+        List<Lesson> lessons,
+        List<Substitution> subs,
+        List<Lesson> allLessons,
+        List<Substitution> allSubs,
+      ) =>
+          applyJointClasses(
+        mergeDaySchedule(
+          date: day,
+          groupName: groupName,
+          weekType: weekType,
+          lessons: lessons,
+          substitutions: subs,
+          subgroupFilter: subgroup,
+        ),
+        lessons: allLessons,
+        substitutions: allSubs,
       ),
     );
   }

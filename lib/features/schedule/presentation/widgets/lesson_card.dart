@@ -164,6 +164,29 @@ class LessonCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                  if (!slot.isCancelled && slot.jointGroups.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.groups_outlined,
+                              size: 14, color: scheme.tertiary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              slot.jointGroups.length == 1
+                                  ? 'Совмещёнка с группой '
+                                      '${slot.jointGroups.single}'
+                                  : 'Совмещёнка с группами '
+                                      '${slot.jointGroups.join(', ')}',
+                              style: theme.textTheme.labelSmall
+                                  ?.copyWith(color: scheme.tertiary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (!slot.isCancelled && requiredItems.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),

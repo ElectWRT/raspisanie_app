@@ -68,6 +68,21 @@ class AppDatabase extends _$AppDatabase {
     return query.watch();
   }
 
+  /// Базовые пары всех групп на день недели — для поиска совмещённых пар.
+  /// Фильтра по группе намеренно нет: ищем как раз чужие пары.
+  Stream<List<Lesson>> watchLessonsForAllGroups({
+    required int dayOfWeek,
+    required WeekType weekType,
+  }) {
+    final query = select(lessons)
+      ..where((t) =>
+          t.dayOfWeek.equals(dayOfWeek) &
+          (t.weekType.equalsValue(WeekType.every) |
+              t.weekType.equalsValue(weekType)))
+      ..orderBy([(t) => OrderingTerm(expression: t.pairNumber)]);
+    return query.watch();
+  }
+
   /// Все группы, для которых загружено базовое расписание.
   Future<List<String>> getGroupNames() async {
     final query = selectOnly(lessons, distinct: true)
