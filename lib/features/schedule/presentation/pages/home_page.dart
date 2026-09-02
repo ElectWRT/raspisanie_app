@@ -7,6 +7,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/settings/app_settings.dart';
 import '../../../../core/utils/week_utils.dart';
+import '../../../attendance/presentation/bloc/attendance_cubit.dart';
+import '../../../attendance/presentation/widgets/skip_advice_chip.dart';
 import '../../../../di.dart';
 import '../../../homework/presentation/bloc/homework_cubit.dart';
 import '../../../homework/presentation/pages/homework_page.dart';
@@ -153,12 +155,40 @@ class _DayBodyState extends State<_DayBody> {
       const Duration(seconds: 30),
       (_) => setState(() => _now = DateTime.now()),
     );
+    _syncAttendance();
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DayBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.date == widget.state.date &&
+        oldWidget.state.group == widget.state.group) {
+      return;
+    }
+    _syncAttendance();
+  }
+
+  /// Учёт посещений живёт своим кубитом, но смотрит на ту же группу и день,
+  /// что и расписание. Синхронизируем здесь, а не в ScheduleCubit, чтобы
+  /// расписание ничего не знало про отметки.
+  ///
+  /// Всегда после кадра: и initState, и didUpdateWidget выполняются внутри
+  /// сборки, а setContext синхронно эмитит новое состояние — подписчики
+  /// начали бы перестраиваться посреди уже идущей сборки.
+  void _syncAttendance() {
+    final state = widget.state;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context
+          .read<AttendanceCubit>()
+          .setContext(group: state.group, date: state.date);
+    });
   }
 
   @override
@@ -195,6 +225,9 @@ class _DayBodyState extends State<_DayBody> {
     final isToday = WeekUtils.dayKey(_now) == day.date;
     final compact = settings.compactCards;
 
+    // Отметки, профили предметов и «что взять» — из учёта посещений.
+    final attendance = context.watch<AttendanceCubit>().state;
+
     // Незакрытые задания по предметам — значок на карточке пары.
     final homework = context.watch<HomeworkCubit>().state;
     final counts = <String, int>{};
@@ -214,6 +247,7 @@ class _DayBodyState extends State<_DayBody> {
             key: ValueKey('summary-${day.date}'),
             day: day,
             bells: widget.state.activeBells,
+            showAdvice: settings.showSkipAdvice,
           ).animate().fadeIn(duration: 200.ms);
         }
 
@@ -230,19 +264,30 @@ class _DayBodyState extends State<_DayBody> {
           isPast: highlight && (bell?.isPast(_now, day.date) ?? false),
           homeworkCount: counts[slot.subject.toLowerCase()] ?? 0,
           entranceIndex: index - 1,
+          attendance: attendance.markFor(slot)?.status,
+          onAttendanceTap: () =>
+              context.read<AttendanceCubit>().cycle(slot),
+          requiredItems: attendance.itemsFor(slot.subject),
+          isMajorSubject: attendance.isMajor(slot.subject),
         );
       },
     );
   }
 }
 
-/// Строка-сводка над списком: сколько пар, во сколько начало и конец.
+/// Строка-сводка над списком: сколько пар, во сколько начало и конец,
+/// а справа — вердикт, во что обойдётся пропуск этого дня.
 class _DaySummary extends StatelessWidget {
-  const _DaySummary({super.key, required this.day, required this.bells});
-
+  const _DaySummary({
+    super.key,
+    required this.day,
+    required this.bells,
+    this.showAdvice = true,
+  });
 
   final DaySchedule day;
   final BellSchedule? bells;
+  final bool showAdvice;
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +304,11 @@ class _DaySummary extends StatelessWidget {
       if (day.substitutionCount > 0) 'замен: ${day.substitutionCount}',
     ];
 
+    // Вердикт считается по парам с уже наложенными заменами: снятая пара
+    // в него не идёт, а заменённая идёт со своим новым предметом.
+    final attendance = context.watch<AttendanceCubit>();
+    final advice = showAdvice ? attendance.adviceFor(day.slots) : null;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10, left: 2),
       child: Row(
@@ -273,7 +323,12 @@ class _DaySummary extends StatelessWidget {
             ),
           ),
           if (day.substitutionCount > 0)
-            Icon(Icons.swap_horiz, size: 15, color: scheme.tertiary),
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Icon(Icons.swap_horiz, size: 15, color: scheme.tertiary),
+            ),
+          if (advice != null && !advice.isEmpty)
+            SkipAdviceChip(advice: advice),
         ],
       ),
     );

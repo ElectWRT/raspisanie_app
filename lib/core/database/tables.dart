@@ -76,6 +76,80 @@ enum HomeworkPriority {
   required,
 }
 
+/// Был ли студент на паре.
+enum AttendanceStatus {
+  /// Был.
+  present,
+
+  /// Пропустил.
+  absent,
+
+  /// Пропустил по уважительной причине — в лимит пропусков не идёт.
+  excused,
+}
+
+/// Ключ пары внутри дня: номер и подгруппа. У одной пары бывает две
+/// записи — по одной на подгруппу, — поэтому номера мало.
+String attendanceKey(int pairNumber, String? subgroup) =>
+    '$pairNumber:${subgroup ?? ''}';
+
+/// Отметки посещения по парам.
+///
+/// Предмет хранится строкой рядом с отметкой, а не ссылкой на [Lessons]:
+/// расписание переимпортируют целиком, и статистика за прошлые месяцы
+/// не должна от этого рассыпаться.
+class Attendances extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Всегда полночь локального времени — ключ дня.
+  DateTimeColumn get date => dateTime()();
+  TextColumn get groupName => text()();
+  IntColumn get pairNumber => integer()();
+
+  /// Подгруппа: «1», «2» или пустая строка для пары всей группы.
+  ///
+  /// Пустая строка, а не NULL: колонка входит в уникальный ключ, а SQLite
+  /// считает любые два NULL разными значениями — с nullable-колонкой
+  /// повторная отметка пары без подгруппы не находила бы конфликт
+  /// и создавала вторую строку вместо перезаписи первой.
+  TextColumn get subgroup => text().withDefault(const Constant(''))();
+
+  /// Предмет на момент отметки — уже с учётом замены, если она была.
+  TextColumn get subject => text()();
+  IntColumn get status => intEnum<AttendanceStatus>()();
+  DateTimeColumn get markedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+        {date, groupName, pairNumber, subgroup},
+      ];
+}
+
+/// Профиль предмета: насколько дорого его пропускать и что брать на пару.
+class SubjectProfiles extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get groupName => text()();
+
+  /// Название в нижнем регистре — в расписании и заменах предмет пишут
+  /// по-разному, а профиль должен находиться в обоих случаях.
+  TextColumn get subjectKey => text()();
+
+  /// Название так, как его показывать.
+  TextColumn get subject => text()();
+
+  /// Профильный предмет: пропуск считается строже.
+  BoolColumn get isMajor => boolean().withDefault(const Constant(false))();
+
+  /// Что взять на пару — по одному пункту в строке.
+  TextColumn get items => text().withDefault(const Constant(''))();
+  TextColumn get note => text().nullable()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+        {groupName, subjectKey},
+      ];
+}
+
 /// Домашние задания. Привязаны к предмету и дате сдачи, а не к конкретной
 /// паре: пару могут перенести заменой, а сдавать всё равно к этому дню.
 class Homeworks extends Table {

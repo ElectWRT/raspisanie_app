@@ -8,6 +8,7 @@ import 'package:raspisanie_app/features/schedule/data/datasources/markdown_sched
 import 'package:raspisanie_app/features/schedule/domain/entities/bell_schedule.dart';
 import 'package:raspisanie_app/core/database/database.dart';
 import 'package:raspisanie_app/core/utils/week_utils.dart';
+import 'package:raspisanie_app/features/attendance/domain/repositories/attendance_repository.dart';
 import 'package:raspisanie_app/features/homework/domain/repositories/homework_repository.dart';
 import 'package:raspisanie_app/features/schedule/domain/entities/schedule_slot.dart';
 import 'package:raspisanie_app/features/schedule/domain/repositories/schedule_repository.dart';
@@ -73,6 +74,71 @@ class _FakeScheduleRepository implements ScheduleRepository {
   Future<void> clearSchedule() async {}
 }
 
+/// Подставной учёт посещений: помнит, какие пары уже отмечены.
+class _FakeAttendanceRepository implements AttendanceRepository {
+  _FakeAttendanceRepository({this.marked = const {}});
+
+  /// Ключи вида [attendanceKey], которые считаются отмеченными в любой день.
+  final Set<String> marked;
+
+  @override
+  Future<Set<String>> markedKeys({
+    required String groupName,
+    required DateTime date,
+  }) async =>
+      marked;
+
+  @override
+  Stream<Map<String, Attendance>> watchDay({
+    required String groupName,
+    required DateTime date,
+  }) =>
+      Stream.value(const {});
+
+  @override
+  Stream<List<Attendance>> watchAll(String groupName) => Stream.value(const []);
+
+  @override
+  Future<List<Attendance>> all(String groupName) async => const [];
+
+  @override
+  Future<void> mark({
+    required DateTime date,
+    required String groupName,
+    required int pairNumber,
+    String? subgroup,
+    required String subject,
+    required AttendanceStatus status,
+  }) async {}
+
+  @override
+  Future<void> clear({
+    required DateTime date,
+    required String groupName,
+    required int pairNumber,
+    String? subgroup,
+  }) async {}
+
+  @override
+  Stream<List<SubjectProfile>> watchProfiles(String groupName) =>
+      Stream.value(const []);
+
+  @override
+  Future<List<SubjectProfile>> profiles(String groupName) async => const [];
+
+  @override
+  Future<void> saveProfile({
+    required String groupName,
+    required String subject,
+    required bool isMajor,
+    required List<String> items,
+    String? note,
+  }) async {}
+
+  @override
+  Future<void> removeProfile(int id) async {}
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -98,11 +164,13 @@ void main() {
     required Map<int, List<ScheduleSlot>> slots,
     List<BellSchedule> schedules = bells,
     List<Homework> homeworks = const [],
+    Set<String> markedAttendance = const {},
   }) {
     return ReminderScheduler(
       repository:
           _FakeScheduleRepository(bells: schedules, slotsByWeekday: slots),
       homework: _FakeHomeworkRepository(homeworks),
+      attendance: _FakeAttendanceRepository(marked: markedAttendance),
       settings: settings,
       notifications: NotificationService.create(),
     );

@@ -8,6 +8,7 @@ import '../../../core/notifications/reminder_scheduler.dart';
 import '../../../core/settings/app_settings.dart';
 import '../../../core/utils/week_utils.dart';
 import '../../../di.dart';
+import '../../attendance/presentation/pages/attendance_page.dart';
 import '../../schedule/domain/repositories/schedule_repository.dart';
 import '../../schedule/presentation/bloc/schedule_cubit.dart';
 import '../../schedule/presentation/pages/bells_page.dart';
@@ -59,6 +60,7 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           ..._scheduleSection(),
           ..._notificationsSection(),
+          ..._attendanceSection(),
           ..._appearanceSection(),
           ..._sourceSection(),
           ..._dataSection(),
@@ -254,6 +256,21 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
         const Divider(indent: 16, endIndent: 16),
+        SwitchListTile(
+          secondary: const Icon(Icons.how_to_reg_outlined),
+          title: const Text('Напоминать отметить пропуски'),
+          subtitle: const Text(
+            'Через 20 минут после последней пары, если что-то не отмечено',
+          ),
+          isThreeLine: true,
+          value: _settings.attendanceRemindersEnabled,
+          onChanged: (value) async {
+            await _settings.setAttendanceRemindersEnabled(value);
+            if (mounted) setState(() {});
+            await getIt<ReminderScheduler>().refresh();
+          },
+        ),
+        const Divider(indent: 16, endIndent: 16),
         ListTile(
           leading: const Icon(Icons.fact_check_outlined),
           title: const Text('Проверить напоминания'),
@@ -262,6 +279,97 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ],
     ];
+  }
+
+  // ---------------------------------------------------------- посещаемость
+
+  List<Widget> _attendanceSection() {
+    return [
+      const SectionHeader('Посещаемость', icon: Icons.how_to_reg_outlined),
+      ListTile(
+        leading: const Icon(Icons.insights_outlined),
+        title: const Text('Статистика пропусков'),
+        subtitle: const Text('Сколько пропущено по каждому предмету'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _openAttendance,
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.help_outline),
+        title: const Text('Показывать вердикт над расписанием'),
+        subtitle: const Text(
+          'Можно ли пропустить этот день — справа в строке со временем',
+        ),
+        isThreeLine: true,
+        value: _settings.showSkipAdvice,
+        onChanged: (value) async {
+          await _settings.setShowSkipAdvice(value);
+          if (mounted) setState(() {});
+        },
+      ),
+      if (_settings.showSkipAdvice) ...[
+        ListTile(
+          leading: const Icon(Icons.numbers_outlined),
+          title: const Text('Лимит пропусков по предмету'),
+          subtitle: SegmentedButton<int>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 2, label: Text('2')),
+              ButtonSegment(value: 4, label: Text('4')),
+              ButtonSegment(value: 6, label: Text('6')),
+              ButtonSegment(value: 8, label: Text('8')),
+            ],
+            selected: {_nearest(_settings.skipLimitPerSubject, const [2, 4, 6, 8])},
+            onSelectionChanged: (selection) async {
+              await _settings.setSkipLimitPerSubject(selection.first);
+              if (mounted) setState(() {});
+            },
+          ),
+          isThreeLine: true,
+        ),
+        ListTile(
+          leading: const Icon(Icons.star_outline),
+          title: const Text('Лимит по профильному предмету'),
+          subtitle: SegmentedButton<int>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 1, label: Text('1')),
+              ButtonSegment(value: 2, label: Text('2')),
+              ButtonSegment(value: 3, label: Text('3')),
+              ButtonSegment(value: 4, label: Text('4')),
+            ],
+            selected: {
+              _nearest(_settings.skipLimitPerMajorSubject, const [1, 2, 3, 4])
+            },
+            onSelectionChanged: (selection) async {
+              await _settings.setSkipLimitPerMajorSubject(selection.first);
+              if (mounted) setState(() {});
+            },
+          ),
+          isThreeLine: true,
+        ),
+      ],
+    ];
+  }
+
+  /// SegmentedButton падает, если выбранного значения нет среди сегментов,
+  /// а в настройках может лежать что угодно из восстановленной копии.
+  static int _nearest(int value, List<int> options) {
+    var best = options.first;
+    for (final option in options) {
+      if ((option - value).abs() < (best - value).abs()) best = option;
+    }
+    return best;
+  }
+
+  Future<void> _openAttendance() async {
+    final group = _settings.selectedGroup;
+    final subjects =
+        group == null ? <String>[] : await getIt<ScheduleRepository>().subjects(group);
+    if (!mounted) return;
+
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AttendancePage(subjects: subjects),
+    ));
   }
 
   Future<void> _pickHomeworkHour() async {

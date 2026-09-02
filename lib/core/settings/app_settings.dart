@@ -31,6 +31,10 @@ class AppSettings extends ChangeNotifier {
   static const _kExactAlarms = 'exact_alarms';
   static const _kBackgroundRefresh = 'background_refresh_enabled';
   static const _kBackgroundHours = 'background_refresh_hours';
+  static const _kAttendanceReminders = 'attendance_reminders_enabled';
+  static const _kShowSkipAdvice = 'show_skip_advice';
+  static const _kSkipLimit = 'skip_limit_per_subject';
+  static const _kSkipLimitMajor = 'skip_limit_per_major_subject';
 
   /// Страница учебного заведения, где завуч публикует ссылки на замены.
   static const defaultSourcePageUrl =
@@ -120,6 +124,20 @@ class AppSettings extends ChangeNotifier {
   }
 
   bool get autoRefreshOnLaunch => _prefs.getBool(_kAutoRefresh) ?? true;
+
+  /// Напоминать вечером отметить пропуски.
+  bool get attendanceRemindersEnabled =>
+      _prefs.getBool(_kAttendanceReminders) ?? true;
+
+  /// Показывать над расписанием вердикт «можно ли пропустить».
+  bool get showSkipAdvice => _prefs.getBool(_kShowSkipAdvice) ?? true;
+
+  /// Сколько пар по обычному предмету можно пропустить без последствий.
+  /// Общего стандарта нет — в каждом заведении считают по-своему.
+  int get skipLimitPerSubject => _prefs.getInt(_kSkipLimit) ?? 4;
+
+  /// То же для профильных предметов — по ним спрашивают строже.
+  int get skipLimitPerMajorSubject => _prefs.getInt(_kSkipLimitMajor) ?? 2;
 
   Future<void> setSelectedGroup(String? value) async {
     if (value == null) {
@@ -257,6 +275,26 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setAttendanceRemindersEnabled(bool value) async {
+    await _prefs.setBool(_kAttendanceReminders, value);
+    notifyListeners();
+  }
+
+  Future<void> setShowSkipAdvice(bool value) async {
+    await _prefs.setBool(_kShowSkipAdvice, value);
+    notifyListeners();
+  }
+
+  Future<void> setSkipLimitPerSubject(int value) async {
+    await _prefs.setInt(_kSkipLimit, value.clamp(1, 40));
+    notifyListeners();
+  }
+
+  Future<void> setSkipLimitPerMajorSubject(int value) async {
+    await _prefs.setInt(_kSkipLimitMajor, value.clamp(1, 40));
+    notifyListeners();
+  }
+
   /// Настройки для резервной копии. Не включает выбранную группу и
   /// подгруппу: они привязаны к расписанию, которое бэкап восстанавливает
   /// отдельно, и их некорректно тащить в файл вслепую.
@@ -282,6 +320,10 @@ class AppSettings extends ChangeNotifier {
         'manualLink': manualLink,
         'preferredBuilding': preferredBuilding,
         'autoRefreshOnLaunch': autoRefreshOnLaunch,
+        'attendanceRemindersEnabled': attendanceRemindersEnabled,
+        'showSkipAdvice': showSkipAdvice,
+        'skipLimitPerSubject': skipLimitPerSubject,
+        'skipLimitPerMajorSubject': skipLimitPerMajorSubject,
       };
 
   /// Восстанавливает настройки из резервной копии. Пропускает ключи,
@@ -354,6 +396,19 @@ class AppSettings extends ChangeNotifier {
     }
     if (data.containsKey('autoRefreshOnLaunch')) {
       await setAutoRefreshOnLaunch(asBool('autoRefreshOnLaunch') ?? true);
+    }
+    if (data.containsKey('attendanceRemindersEnabled')) {
+      await setAttendanceRemindersEnabled(
+          asBool('attendanceRemindersEnabled') ?? true);
+    }
+    if (data.containsKey('showSkipAdvice')) {
+      await setShowSkipAdvice(asBool('showSkipAdvice') ?? true);
+    }
+    final skipLimit = asInt('skipLimitPerSubject');
+    if (skipLimit != null) await setSkipLimitPerSubject(skipLimit);
+    final skipLimitMajor = asInt('skipLimitPerMajorSubject');
+    if (skipLimitMajor != null) {
+      await setSkipLimitPerMajorSubject(skipLimitMajor);
     }
   }
 

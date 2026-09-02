@@ -11,7 +11,14 @@ export 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [Lessons, Substitutions, AppMeta, Homeworks])
+@DriftDatabase(tables: [
+  Lessons,
+  Substitutions,
+  AppMeta,
+  Homeworks,
+  Attendances,
+  SubjectProfiles,
+])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -19,7 +26,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -29,6 +36,12 @@ class AppDatabase extends _$AppDatabase {
           // расписанием — создаём только новую таблицу, ничего не трогая.
           if (from < 2) {
             await m.createTable(homeworks);
+          }
+          // v3: учёт пропусков и профили предметов. Так же — только новые
+          // таблицы, расписание и замены не трогаем.
+          if (from < 3) {
+            await m.createTable(attendances);
+            await m.createTable(subjectProfiles);
           }
         },
       );
@@ -247,6 +260,140 @@ class AppDatabase extends _$AppDatabase {
         .go();
   }
 
+  // ------------------------------------------------------------ Attendances
+
+  /// Отметки за день. Ключ — «номер пары:подгруппа», как в [attendanceKey].
+  Stream<Map<String, Attendance>> watchAttendanceForDay({
+    required String groupName,
+    required DateTime date,
+  }) {
+    final query = select(attendances)
+      ..where((t) => t.groupName.equals(groupName) & t.date.equals(date));
+    return query.watch().map((rows) => {
+          for (final row in rows)
+            attendanceKey(row.pairNumber, row.subgroup): row,
+        });
+  }
+
+  /// Все отметки группы — основа статистики.
+  Stream<List<Attendance>> watchAttendance(String groupName) =>
+      (select(attendances)
+            ..where((t) => t.groupName.equals(groupName))
+            ..orderBy([(t) => OrderingTerm(expression: t.date)]))
+          .watch();
+
+  Future<List<Attendance>> getAttendance(String groupName) =>
+      (select(attendances)..where((t) => t.groupName.equals(groupName))).get();
+
+  /// Ставит или переставляет отметку. Повторный вызов с тем же ключом
+  /// перезаписывает статус, а не плодит строки.
+  Future<void> setAttendance({
+    required DateTime date,
+    required String groupName,
+    required int pairNumber,
+    String? subgroup,
+    required String subject,
+    required AttendanceStatus status,
+  }) =>
+      into(attendances).insert(
+        AttendancesCompanion.insert(
+          date: date,
+          groupName: groupName,
+          pairNumber: pairNumber,
+          subgroup: Value(subgroup ?? ''),
+          subject: subject,
+          status: status,
+          markedAt: Value(DateTime.now()),
+        ),
+        // Цель конфликта задаём явно: по умолчанию drift целится
+        // в первичный ключ, то есть в автоинкрементный id, и повторная
+        // отметка той же пары падала бы на уникальном ключе.
+        onConflict: DoUpdate(
+          (_) => AttendancesCompanion(
+            subject: Value(subject),
+            status: Value(status),
+            markedAt: Value(DateTime.now()),
+          ),
+          target: [
+            attendances.date,
+            attendances.groupName,
+            attendances.pairNumber,
+            attendances.subgroup,
+          ],
+        ),
+      );
+
+  /// Снимает отметку — пара снова считается неотмеченной.
+  Future<int> clearAttendance({
+    required DateTime date,
+    required String groupName,
+    required int pairNumber,
+    String? subgroup,
+  }) {
+    return (delete(attendances)
+          ..where((t) =>
+              t.date.equals(date) &
+              t.groupName.equals(groupName) &
+              t.pairNumber.equals(pairNumber) &
+              t.subgroup.equals(subgroup ?? '')))
+        .go();
+  }
+
+  /// Номера пар, отмеченных за день, — чтобы понять, что осталось.
+  Future<Set<String>> markedKeysForDay({
+    required String groupName,
+    required DateTime date,
+  }) async {
+    final rows = await (select(attendances)
+          ..where((t) => t.groupName.equals(groupName) & t.date.equals(date)))
+        .get();
+    return {
+      for (final row in rows) attendanceKey(row.pairNumber, row.subgroup),
+    };
+  }
+
+  // -------------------------------------------------------- SubjectProfiles
+
+  Stream<List<SubjectProfile>> watchSubjectProfiles(String groupName) =>
+      (select(subjectProfiles)
+            ..where((t) => t.groupName.equals(groupName))
+            ..orderBy([(t) => OrderingTerm(expression: t.subject)]))
+          .watch();
+
+  Future<List<SubjectProfile>> getSubjectProfiles(String groupName) =>
+      (select(subjectProfiles)..where((t) => t.groupName.equals(groupName)))
+          .get();
+
+  Future<void> upsertSubjectProfile({
+    required String groupName,
+    required String subject,
+    required bool isMajor,
+    required String items,
+    String? note,
+  }) =>
+      into(subjectProfiles).insert(
+        SubjectProfilesCompanion.insert(
+          groupName: groupName,
+          subjectKey: subject.toLowerCase().trim(),
+          subject: subject.trim(),
+          isMajor: Value(isMajor),
+          items: Value(items),
+          note: Value(note),
+        ),
+        onConflict: DoUpdate(
+          (_) => SubjectProfilesCompanion(
+            subject: Value(subject.trim()),
+            isMajor: Value(isMajor),
+            items: Value(items),
+            note: Value(note),
+          ),
+          target: [subjectProfiles.groupName, subjectProfiles.subjectKey],
+        ),
+      );
+
+  Future<int> deleteSubjectProfile(int id) =>
+      (delete(subjectProfiles)..where((t) => t.id.equals(id))).go();
+
   // ---------------------------------------------------------------- Backup
 
   /// Всё, что относится к расписанию: базовые пары, замены, домашка и
@@ -257,12 +404,16 @@ class AppDatabase extends _$AppDatabase {
     final substitutionRows = await select(substitutions).get();
     final homeworkRows = await select(homeworks).get();
     final metaRows = await select(appMeta).get();
+    final attendanceRows = await select(attendances).get();
+    final profileRows = await select(subjectProfiles).get();
 
     return {
       'lessons': lessonRows.map((r) => r.toJson()).toList(),
       'substitutions': substitutionRows.map((r) => r.toJson()).toList(),
       'homeworks': homeworkRows.map((r) => r.toJson()).toList(),
       'appMeta': metaRows.map((r) => r.toJson()).toList(),
+      'attendances': attendanceRows.map((r) => r.toJson()).toList(),
+      'subjectProfiles': profileRows.map((r) => r.toJson()).toList(),
     };
   }
 
@@ -274,6 +425,8 @@ class AppDatabase extends _$AppDatabase {
       await delete(substitutions).go();
       await delete(homeworks).go();
       await delete(appMeta).go();
+      await delete(attendances).go();
+      await delete(subjectProfiles).go();
 
       final lessonRows = _decodeList(data['lessons'], Lesson.fromJson);
       if (lessonRows.isNotEmpty) {
@@ -305,6 +458,26 @@ class AppDatabase extends _$AppDatabase {
         await batch((b) => b.insertAll(
               appMeta,
               metaRows.map((r) => r.toCompanion(true)),
+            ));
+      }
+
+      // Копии, снятые до появления учёта пропусков, этих ключей не имеют —
+      // _decodeList вернёт пустой список, и таблицы просто останутся пустыми.
+      final attendanceRows =
+          _decodeList(data['attendances'], Attendance.fromJson);
+      if (attendanceRows.isNotEmpty) {
+        await batch((b) => b.insertAll(
+              attendances,
+              attendanceRows.map((r) => r.toCompanion(true)),
+            ));
+      }
+
+      final profileRows =
+          _decodeList(data['subjectProfiles'], SubjectProfile.fromJson);
+      if (profileRows.isNotEmpty) {
+        await batch((b) => b.insertAll(
+              subjectProfiles,
+              profileRows.map((r) => r.toCompanion(true)),
             ));
       }
     });

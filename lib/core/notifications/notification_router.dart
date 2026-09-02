@@ -45,6 +45,13 @@ class NotificationRouter {
         final id = int.tryParse(data);
         if (id == null) return;
         await _openHomework(context, highlightId: id);
+
+      // Отмечают прямо в списке пар, поэтому ведём на нужный день, а не
+      // на экран статистики: там отмечать нечего.
+      case NotificationPayload.attendanceType:
+        final date = DateTime.tryParse(data);
+        if (date == null) return;
+        context.read<ScheduleCubit>().selectDate(date);
     }
   }
 

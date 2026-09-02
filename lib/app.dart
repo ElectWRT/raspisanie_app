@@ -10,6 +10,8 @@ import 'core/notifications/reminder_scheduler.dart';
 import 'core/settings/app_settings.dart';
 import 'core/theme/app_theme.dart';
 import 'di.dart';
+import 'features/attendance/domain/repositories/attendance_repository.dart';
+import 'features/attendance/presentation/bloc/attendance_cubit.dart';
 import 'features/homework/domain/repositories/homework_repository.dart';
 import 'features/homework/presentation/bloc/homework_cubit.dart';
 import 'features/schedule/domain/repositories/schedule_repository.dart';
@@ -103,6 +105,12 @@ class _RaspisanieAppState extends State<RaspisanieApp>
             if (settings.autoRefreshOnLaunch) cubit.refresh();
             return cubit;
           },
+        ),
+        BlocProvider(
+          create: (_) => AttendanceCubit(
+            repository: getIt<AttendanceRepository>(),
+            settings: settings,
+          ),
         ),
       ],
       // Настройки — ChangeNotifier, поэтому смена темы перестраивает

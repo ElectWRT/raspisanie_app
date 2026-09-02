@@ -1,7 +1,9 @@
+import '../../features/attendance/domain/repositories/attendance_repository.dart';
 import '../../features/homework/domain/homework_priority_ui.dart';
 import '../../features/homework/domain/repositories/homework_repository.dart';
 import '../../features/schedule/domain/entities/bell_schedule.dart';
 import '../../features/schedule/domain/repositories/schedule_repository.dart';
+import '../database/database.dart';
 import '../settings/app_settings.dart';
 import '../utils/week_utils.dart';
 import 'notification_service.dart';
@@ -14,12 +16,14 @@ class ReminderScheduler {
   ReminderScheduler({
     required this.repository,
     required this.homework,
+    required this.attendance,
     required this.settings,
     required this.notifications,
   });
 
   final ScheduleRepository repository;
   final HomeworkRepository homework;
+  final AttendanceRepository attendance;
   final AppSettings settings;
   final NotificationService notifications;
 
@@ -43,9 +47,78 @@ class ReminderScheduler {
     final reminders = <PendingReminder>[
       ...await buildReminders(group),
       if (settings.homeworkReminders) ...await buildHomeworkReminders(group),
+      if (settings.attendanceRemindersEnabled)
+        ...await buildAttendanceReminders(group),
     ]..sort((a, b) => a.when.compareTo(b.when));
 
     return notifications.reschedule(reminders, exact: settings.exactAlarms);
+  }
+
+  /// Через сколько минут после последней пары напомнить об отметках.
+  /// Сразу по звонку рано: студент ещё собирается и выходит.
+  static const _attendanceDelayMinutes = 20;
+
+  /// Напоминания «отметьте пропуски» — по одному на день, после последней
+  /// пары и только если в этом дне что-то ещё не отмечено.
+  ///
+  /// Планируем и на сегодня, и на будущие дни: на будущие отметок нет
+  /// по определению, а к вечеру они появятся — уведомление тогда просто
+  /// окажется лишним, и это дешевле, чем не напомнить вовсе.
+  Future<List<AttendanceReminder>> buildAttendanceReminders(
+    String group,
+  ) async {
+    final schedules = await repository.getBellSchedules();
+    if (schedules.isEmpty) return const [];
+
+    final now = DateTime.now();
+    final today = WeekUtils.dayKey(now);
+    final reminders = <AttendanceReminder>[];
+
+    for (var offset = 0; offset < _horizonDays; offset++) {
+      final date = today.add(Duration(days: offset));
+      final bells = bellScheduleForWeekday(schedules, date.weekday);
+      if (bells == null) continue;
+
+      final day = await repository
+          .watchDay(
+            groupName: group,
+            date: date,
+            subgroup: settings.subgroup,
+            invertWeekParity: settings.invertWeekParity,
+          )
+          .first;
+
+      // Снятые пары отмечать нечего.
+      final slots = day.slots.where((s) => !s.isCancelled).toList();
+      if (slots.isEmpty) continue;
+
+      final marked = await attendance.markedKeys(
+        groupName: group,
+        date: date,
+      );
+      final unmarked = slots
+          .where((s) => !marked.contains(attendanceKey(s.pairNumber, s.subgroup)))
+          .length;
+      if (unmarked == 0) continue;
+
+      final lastPair = slots.map((s) => s.pairNumber).reduce((a, b) => a > b ? a : b);
+      final bell = bells.timeFor(lastPair);
+      if (bell == null) continue;
+
+      final end = _combine(date, bell.end);
+      if (end == null) continue;
+
+      final when = end.add(const Duration(minutes: _attendanceDelayMinutes));
+      if (!when.isAfter(now)) continue;
+
+      reminders.add(AttendanceReminder(
+        when: when,
+        date: date,
+        unmarked: unmarked,
+      ));
+    }
+
+    return reminders;
   }
 
   /// Собирает напоминания о домашке: одно на задание, за

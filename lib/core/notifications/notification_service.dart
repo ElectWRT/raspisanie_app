@@ -26,11 +26,16 @@ class NotificationPayload {
   static const lessonType = 'lesson';
   static const homeworkType = 'homework';
   static const substitutionsType = 'substitutions';
+  static const attendanceType = 'attendance';
 
   static String forLesson(DateTime date) =>
       '$lessonType:${_dateOnly(date)}';
 
   static String forHomework(int id) => '$homeworkType:$id';
+
+  /// Ведёт на день, в котором остались неотмеченные пары.
+  static String forAttendance(DateTime date) =>
+      '$attendanceType:${_dateOnly(date)}';
 
   static String forSubstitutions(DateTime date) =>
       '$substitutionsType:${_dateOnly(date)}';
@@ -154,6 +159,42 @@ class HomeworkReminder implements PendingReminder {
     if (mod10 == 1 && mod100 != 11) return 'день';
     if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'дня';
     return 'дней';
+  }
+}
+
+/// Напоминание отметить посещение, когда пары на сегодня закончились.
+class AttendanceReminder implements PendingReminder {
+  @override
+  final DateTime when;
+
+  /// День, отметки которого нужно закрыть.
+  final DateTime date;
+
+  /// Сколько пар осталось неотмеченными на момент планирования.
+  final int unmarked;
+
+  const AttendanceReminder({
+    required this.when,
+    required this.date,
+    required this.unmarked,
+  });
+
+  @override
+  String get payload => NotificationPayload.forAttendance(date);
+
+  @override
+  String get title => 'Отметьте пропуски';
+
+  @override
+  String get body => 'Не забудьте отметить, если что-то пропустили сегодня: '
+      '$unmarked ${_pairsWord(unmarked)} без отметки.';
+
+  static String _pairsWord(int count) {
+    final mod10 = count % 10;
+    final mod100 = count % 100;
+    if (mod10 == 1 && mod100 != 11) return 'пара';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'пары';
+    return 'пар';
   }
 }
 

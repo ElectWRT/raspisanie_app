@@ -105,6 +105,62 @@ void main() {
     expect(await database.getMeta('bell_schedules'), '[{"name":"Основные"}]');
   });
 
+  test('отметки посещения и профили предметов переживают экспорт и импорт',
+      () async {
+    await database.setAttendance(
+      date: DateTime(2026, 9, 15),
+      groupName: 'СА-2124',
+      pairNumber: 2,
+      subject: 'Математика',
+      status: AttendanceStatus.absent,
+    );
+    await database.upsertSubjectProfile(
+      groupName: 'СА-2124',
+      subject: 'Базы данных',
+      isMajor: true,
+      items: 'Ноутбук',
+    );
+
+    final exported = await database.exportAllTables();
+
+    await database.clearAttendance(
+      date: DateTime(2026, 9, 15),
+      groupName: 'СА-2124',
+      pairNumber: 2,
+    );
+    await database.importAllTables(exported);
+
+    final rows = await database.getAttendance('СА-2124');
+    final profiles = await database.getSubjectProfiles('СА-2124');
+
+    expect(rows.single.status, AttendanceStatus.absent);
+    expect(rows.single.subject, 'Математика');
+    expect(profiles.single.isMajor, isTrue);
+    expect(profiles.single.items, 'Ноутбук');
+  });
+
+  test('бэкап без учёта пропусков восстанавливается, таблицы просто пустые',
+      () async {
+    await database.setAttendance(
+      date: DateTime(2026, 9, 15),
+      groupName: 'СА-2124',
+      pairNumber: 1,
+      subject: 'Сети',
+      status: AttendanceStatus.present,
+    );
+
+    // Копия, снятая до появления учёта пропусков: ключей нет вовсе.
+    await service.restore(_bytesOf({
+      'backupFormatVersion': 1,
+      'lessons': [],
+      'substitutions': [],
+      'homeworks': [],
+      'appMeta': [],
+    }));
+
+    expect(await database.getAttendance('СА-2124'), isEmpty);
+  });
+
   test('старые бэкапы без новых настроек не ломают импорт', () async {
     await seed();
 

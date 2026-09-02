@@ -1594,6 +1594,822 @@ class HomeworksCompanion extends UpdateCompanion<Homework> {
   }
 }
 
+class $AttendancesTable extends Attendances
+    with TableInfo<$AttendancesTable, Attendance> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AttendancesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+      'date', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _groupNameMeta =
+      const VerificationMeta('groupName');
+  @override
+  late final GeneratedColumn<String> groupName = GeneratedColumn<String>(
+      'group_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _pairNumberMeta =
+      const VerificationMeta('pairNumber');
+  @override
+  late final GeneratedColumn<int> pairNumber = GeneratedColumn<int>(
+      'pair_number', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _subgroupMeta =
+      const VerificationMeta('subgroup');
+  @override
+  late final GeneratedColumn<String> subgroup = GeneratedColumn<String>(
+      'subgroup', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _subjectMeta =
+      const VerificationMeta('subject');
+  @override
+  late final GeneratedColumn<String> subject = GeneratedColumn<String>(
+      'subject', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<AttendanceStatus, int> status =
+      GeneratedColumn<int>('status', aliasedName, false,
+              type: DriftSqlType.int, requiredDuringInsert: true)
+          .withConverter<AttendanceStatus>($AttendancesTable.$converterstatus);
+  static const VerificationMeta _markedAtMeta =
+      const VerificationMeta('markedAt');
+  @override
+  late final GeneratedColumn<DateTime> markedAt = GeneratedColumn<DateTime>(
+      'marked_at', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, date, groupName, pairNumber, subgroup, subject, status, markedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'attendances';
+  @override
+  VerificationContext validateIntegrity(Insertable<Attendance> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+          _dateMeta, date.isAcceptableOrUnknown(data['date']!, _dateMeta));
+    } else if (isInserting) {
+      context.missing(_dateMeta);
+    }
+    if (data.containsKey('group_name')) {
+      context.handle(_groupNameMeta,
+          groupName.isAcceptableOrUnknown(data['group_name']!, _groupNameMeta));
+    } else if (isInserting) {
+      context.missing(_groupNameMeta);
+    }
+    if (data.containsKey('pair_number')) {
+      context.handle(
+          _pairNumberMeta,
+          pairNumber.isAcceptableOrUnknown(
+              data['pair_number']!, _pairNumberMeta));
+    } else if (isInserting) {
+      context.missing(_pairNumberMeta);
+    }
+    if (data.containsKey('subgroup')) {
+      context.handle(_subgroupMeta,
+          subgroup.isAcceptableOrUnknown(data['subgroup']!, _subgroupMeta));
+    }
+    if (data.containsKey('subject')) {
+      context.handle(_subjectMeta,
+          subject.isAcceptableOrUnknown(data['subject']!, _subjectMeta));
+    } else if (isInserting) {
+      context.missing(_subjectMeta);
+    }
+    if (data.containsKey('marked_at')) {
+      context.handle(_markedAtMeta,
+          markedAt.isAcceptableOrUnknown(data['marked_at']!, _markedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+        {date, groupName, pairNumber, subgroup},
+      ];
+  @override
+  Attendance map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Attendance(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      date: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}date'])!,
+      groupName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}group_name'])!,
+      pairNumber: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}pair_number'])!,
+      subgroup: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}subgroup'])!,
+      subject: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}subject'])!,
+      status: $AttendancesTable.$converterstatus.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}status'])!),
+      markedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}marked_at'])!,
+    );
+  }
+
+  @override
+  $AttendancesTable createAlias(String alias) {
+    return $AttendancesTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<AttendanceStatus, int, int> $converterstatus =
+      const EnumIndexConverter<AttendanceStatus>(AttendanceStatus.values);
+}
+
+class Attendance extends DataClass implements Insertable<Attendance> {
+  final int id;
+
+  /// Всегда полночь локального времени — ключ дня.
+  final DateTime date;
+  final String groupName;
+  final int pairNumber;
+
+  /// Подгруппа: «1», «2» или пустая строка для пары всей группы.
+  ///
+  /// Пустая строка, а не NULL: колонка входит в уникальный ключ, а SQLite
+  /// считает любые два NULL разными значениями — с nullable-колонкой
+  /// повторная отметка пары без подгруппы не находила бы конфликт
+  /// и создавала вторую строку вместо перезаписи первой.
+  final String subgroup;
+
+  /// Предмет на момент отметки — уже с учётом замены, если она была.
+  final String subject;
+  final AttendanceStatus status;
+  final DateTime markedAt;
+  const Attendance(
+      {required this.id,
+      required this.date,
+      required this.groupName,
+      required this.pairNumber,
+      required this.subgroup,
+      required this.subject,
+      required this.status,
+      required this.markedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['date'] = Variable<DateTime>(date);
+    map['group_name'] = Variable<String>(groupName);
+    map['pair_number'] = Variable<int>(pairNumber);
+    map['subgroup'] = Variable<String>(subgroup);
+    map['subject'] = Variable<String>(subject);
+    {
+      map['status'] =
+          Variable<int>($AttendancesTable.$converterstatus.toSql(status));
+    }
+    map['marked_at'] = Variable<DateTime>(markedAt);
+    return map;
+  }
+
+  AttendancesCompanion toCompanion(bool nullToAbsent) {
+    return AttendancesCompanion(
+      id: Value(id),
+      date: Value(date),
+      groupName: Value(groupName),
+      pairNumber: Value(pairNumber),
+      subgroup: Value(subgroup),
+      subject: Value(subject),
+      status: Value(status),
+      markedAt: Value(markedAt),
+    );
+  }
+
+  factory Attendance.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Attendance(
+      id: serializer.fromJson<int>(json['id']),
+      date: serializer.fromJson<DateTime>(json['date']),
+      groupName: serializer.fromJson<String>(json['groupName']),
+      pairNumber: serializer.fromJson<int>(json['pairNumber']),
+      subgroup: serializer.fromJson<String>(json['subgroup']),
+      subject: serializer.fromJson<String>(json['subject']),
+      status: $AttendancesTable.$converterstatus
+          .fromJson(serializer.fromJson<int>(json['status'])),
+      markedAt: serializer.fromJson<DateTime>(json['markedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'date': serializer.toJson<DateTime>(date),
+      'groupName': serializer.toJson<String>(groupName),
+      'pairNumber': serializer.toJson<int>(pairNumber),
+      'subgroup': serializer.toJson<String>(subgroup),
+      'subject': serializer.toJson<String>(subject),
+      'status': serializer
+          .toJson<int>($AttendancesTable.$converterstatus.toJson(status)),
+      'markedAt': serializer.toJson<DateTime>(markedAt),
+    };
+  }
+
+  Attendance copyWith(
+          {int? id,
+          DateTime? date,
+          String? groupName,
+          int? pairNumber,
+          String? subgroup,
+          String? subject,
+          AttendanceStatus? status,
+          DateTime? markedAt}) =>
+      Attendance(
+        id: id ?? this.id,
+        date: date ?? this.date,
+        groupName: groupName ?? this.groupName,
+        pairNumber: pairNumber ?? this.pairNumber,
+        subgroup: subgroup ?? this.subgroup,
+        subject: subject ?? this.subject,
+        status: status ?? this.status,
+        markedAt: markedAt ?? this.markedAt,
+      );
+  Attendance copyWithCompanion(AttendancesCompanion data) {
+    return Attendance(
+      id: data.id.present ? data.id.value : this.id,
+      date: data.date.present ? data.date.value : this.date,
+      groupName: data.groupName.present ? data.groupName.value : this.groupName,
+      pairNumber:
+          data.pairNumber.present ? data.pairNumber.value : this.pairNumber,
+      subgroup: data.subgroup.present ? data.subgroup.value : this.subgroup,
+      subject: data.subject.present ? data.subject.value : this.subject,
+      status: data.status.present ? data.status.value : this.status,
+      markedAt: data.markedAt.present ? data.markedAt.value : this.markedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Attendance(')
+          ..write('id: $id, ')
+          ..write('date: $date, ')
+          ..write('groupName: $groupName, ')
+          ..write('pairNumber: $pairNumber, ')
+          ..write('subgroup: $subgroup, ')
+          ..write('subject: $subject, ')
+          ..write('status: $status, ')
+          ..write('markedAt: $markedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, date, groupName, pairNumber, subgroup, subject, status, markedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Attendance &&
+          other.id == this.id &&
+          other.date == this.date &&
+          other.groupName == this.groupName &&
+          other.pairNumber == this.pairNumber &&
+          other.subgroup == this.subgroup &&
+          other.subject == this.subject &&
+          other.status == this.status &&
+          other.markedAt == this.markedAt);
+}
+
+class AttendancesCompanion extends UpdateCompanion<Attendance> {
+  final Value<int> id;
+  final Value<DateTime> date;
+  final Value<String> groupName;
+  final Value<int> pairNumber;
+  final Value<String> subgroup;
+  final Value<String> subject;
+  final Value<AttendanceStatus> status;
+  final Value<DateTime> markedAt;
+  const AttendancesCompanion({
+    this.id = const Value.absent(),
+    this.date = const Value.absent(),
+    this.groupName = const Value.absent(),
+    this.pairNumber = const Value.absent(),
+    this.subgroup = const Value.absent(),
+    this.subject = const Value.absent(),
+    this.status = const Value.absent(),
+    this.markedAt = const Value.absent(),
+  });
+  AttendancesCompanion.insert({
+    this.id = const Value.absent(),
+    required DateTime date,
+    required String groupName,
+    required int pairNumber,
+    this.subgroup = const Value.absent(),
+    required String subject,
+    required AttendanceStatus status,
+    this.markedAt = const Value.absent(),
+  })  : date = Value(date),
+        groupName = Value(groupName),
+        pairNumber = Value(pairNumber),
+        subject = Value(subject),
+        status = Value(status);
+  static Insertable<Attendance> custom({
+    Expression<int>? id,
+    Expression<DateTime>? date,
+    Expression<String>? groupName,
+    Expression<int>? pairNumber,
+    Expression<String>? subgroup,
+    Expression<String>? subject,
+    Expression<int>? status,
+    Expression<DateTime>? markedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (date != null) 'date': date,
+      if (groupName != null) 'group_name': groupName,
+      if (pairNumber != null) 'pair_number': pairNumber,
+      if (subgroup != null) 'subgroup': subgroup,
+      if (subject != null) 'subject': subject,
+      if (status != null) 'status': status,
+      if (markedAt != null) 'marked_at': markedAt,
+    });
+  }
+
+  AttendancesCompanion copyWith(
+      {Value<int>? id,
+      Value<DateTime>? date,
+      Value<String>? groupName,
+      Value<int>? pairNumber,
+      Value<String>? subgroup,
+      Value<String>? subject,
+      Value<AttendanceStatus>? status,
+      Value<DateTime>? markedAt}) {
+    return AttendancesCompanion(
+      id: id ?? this.id,
+      date: date ?? this.date,
+      groupName: groupName ?? this.groupName,
+      pairNumber: pairNumber ?? this.pairNumber,
+      subgroup: subgroup ?? this.subgroup,
+      subject: subject ?? this.subject,
+      status: status ?? this.status,
+      markedAt: markedAt ?? this.markedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (groupName.present) {
+      map['group_name'] = Variable<String>(groupName.value);
+    }
+    if (pairNumber.present) {
+      map['pair_number'] = Variable<int>(pairNumber.value);
+    }
+    if (subgroup.present) {
+      map['subgroup'] = Variable<String>(subgroup.value);
+    }
+    if (subject.present) {
+      map['subject'] = Variable<String>(subject.value);
+    }
+    if (status.present) {
+      map['status'] =
+          Variable<int>($AttendancesTable.$converterstatus.toSql(status.value));
+    }
+    if (markedAt.present) {
+      map['marked_at'] = Variable<DateTime>(markedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttendancesCompanion(')
+          ..write('id: $id, ')
+          ..write('date: $date, ')
+          ..write('groupName: $groupName, ')
+          ..write('pairNumber: $pairNumber, ')
+          ..write('subgroup: $subgroup, ')
+          ..write('subject: $subject, ')
+          ..write('status: $status, ')
+          ..write('markedAt: $markedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SubjectProfilesTable extends SubjectProfiles
+    with TableInfo<$SubjectProfilesTable, SubjectProfile> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectProfilesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _groupNameMeta =
+      const VerificationMeta('groupName');
+  @override
+  late final GeneratedColumn<String> groupName = GeneratedColumn<String>(
+      'group_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _subjectKeyMeta =
+      const VerificationMeta('subjectKey');
+  @override
+  late final GeneratedColumn<String> subjectKey = GeneratedColumn<String>(
+      'subject_key', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _subjectMeta =
+      const VerificationMeta('subject');
+  @override
+  late final GeneratedColumn<String> subject = GeneratedColumn<String>(
+      'subject', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _isMajorMeta =
+      const VerificationMeta('isMajor');
+  @override
+  late final GeneratedColumn<bool> isMajor = GeneratedColumn<bool>(
+      'is_major', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_major" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _itemsMeta = const VerificationMeta('items');
+  @override
+  late final GeneratedColumn<String> items = GeneratedColumn<String>(
+      'items', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+      'note', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, groupName, subjectKey, subject, isMajor, items, note];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subject_profiles';
+  @override
+  VerificationContext validateIntegrity(Insertable<SubjectProfile> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('group_name')) {
+      context.handle(_groupNameMeta,
+          groupName.isAcceptableOrUnknown(data['group_name']!, _groupNameMeta));
+    } else if (isInserting) {
+      context.missing(_groupNameMeta);
+    }
+    if (data.containsKey('subject_key')) {
+      context.handle(
+          _subjectKeyMeta,
+          subjectKey.isAcceptableOrUnknown(
+              data['subject_key']!, _subjectKeyMeta));
+    } else if (isInserting) {
+      context.missing(_subjectKeyMeta);
+    }
+    if (data.containsKey('subject')) {
+      context.handle(_subjectMeta,
+          subject.isAcceptableOrUnknown(data['subject']!, _subjectMeta));
+    } else if (isInserting) {
+      context.missing(_subjectMeta);
+    }
+    if (data.containsKey('is_major')) {
+      context.handle(_isMajorMeta,
+          isMajor.isAcceptableOrUnknown(data['is_major']!, _isMajorMeta));
+    }
+    if (data.containsKey('items')) {
+      context.handle(
+          _itemsMeta, items.isAcceptableOrUnknown(data['items']!, _itemsMeta));
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+          _noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+        {groupName, subjectKey},
+      ];
+  @override
+  SubjectProfile map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubjectProfile(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      groupName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}group_name'])!,
+      subjectKey: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}subject_key'])!,
+      subject: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}subject'])!,
+      isMajor: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_major'])!,
+      items: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}items'])!,
+      note: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}note']),
+    );
+  }
+
+  @override
+  $SubjectProfilesTable createAlias(String alias) {
+    return $SubjectProfilesTable(attachedDatabase, alias);
+  }
+}
+
+class SubjectProfile extends DataClass implements Insertable<SubjectProfile> {
+  final int id;
+  final String groupName;
+
+  /// Название в нижнем регистре — в расписании и заменах предмет пишут
+  /// по-разному, а профиль должен находиться в обоих случаях.
+  final String subjectKey;
+
+  /// Название так, как его показывать.
+  final String subject;
+
+  /// Профильный предмет: пропуск считается строже.
+  final bool isMajor;
+
+  /// Что взять на пару — по одному пункту в строке.
+  final String items;
+  final String? note;
+  const SubjectProfile(
+      {required this.id,
+      required this.groupName,
+      required this.subjectKey,
+      required this.subject,
+      required this.isMajor,
+      required this.items,
+      this.note});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['group_name'] = Variable<String>(groupName);
+    map['subject_key'] = Variable<String>(subjectKey);
+    map['subject'] = Variable<String>(subject);
+    map['is_major'] = Variable<bool>(isMajor);
+    map['items'] = Variable<String>(items);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    return map;
+  }
+
+  SubjectProfilesCompanion toCompanion(bool nullToAbsent) {
+    return SubjectProfilesCompanion(
+      id: Value(id),
+      groupName: Value(groupName),
+      subjectKey: Value(subjectKey),
+      subject: Value(subject),
+      isMajor: Value(isMajor),
+      items: Value(items),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+    );
+  }
+
+  factory SubjectProfile.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubjectProfile(
+      id: serializer.fromJson<int>(json['id']),
+      groupName: serializer.fromJson<String>(json['groupName']),
+      subjectKey: serializer.fromJson<String>(json['subjectKey']),
+      subject: serializer.fromJson<String>(json['subject']),
+      isMajor: serializer.fromJson<bool>(json['isMajor']),
+      items: serializer.fromJson<String>(json['items']),
+      note: serializer.fromJson<String?>(json['note']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'groupName': serializer.toJson<String>(groupName),
+      'subjectKey': serializer.toJson<String>(subjectKey),
+      'subject': serializer.toJson<String>(subject),
+      'isMajor': serializer.toJson<bool>(isMajor),
+      'items': serializer.toJson<String>(items),
+      'note': serializer.toJson<String?>(note),
+    };
+  }
+
+  SubjectProfile copyWith(
+          {int? id,
+          String? groupName,
+          String? subjectKey,
+          String? subject,
+          bool? isMajor,
+          String? items,
+          Value<String?> note = const Value.absent()}) =>
+      SubjectProfile(
+        id: id ?? this.id,
+        groupName: groupName ?? this.groupName,
+        subjectKey: subjectKey ?? this.subjectKey,
+        subject: subject ?? this.subject,
+        isMajor: isMajor ?? this.isMajor,
+        items: items ?? this.items,
+        note: note.present ? note.value : this.note,
+      );
+  SubjectProfile copyWithCompanion(SubjectProfilesCompanion data) {
+    return SubjectProfile(
+      id: data.id.present ? data.id.value : this.id,
+      groupName: data.groupName.present ? data.groupName.value : this.groupName,
+      subjectKey:
+          data.subjectKey.present ? data.subjectKey.value : this.subjectKey,
+      subject: data.subject.present ? data.subject.value : this.subject,
+      isMajor: data.isMajor.present ? data.isMajor.value : this.isMajor,
+      items: data.items.present ? data.items.value : this.items,
+      note: data.note.present ? data.note.value : this.note,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectProfile(')
+          ..write('id: $id, ')
+          ..write('groupName: $groupName, ')
+          ..write('subjectKey: $subjectKey, ')
+          ..write('subject: $subject, ')
+          ..write('isMajor: $isMajor, ')
+          ..write('items: $items, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, groupName, subjectKey, subject, isMajor, items, note);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubjectProfile &&
+          other.id == this.id &&
+          other.groupName == this.groupName &&
+          other.subjectKey == this.subjectKey &&
+          other.subject == this.subject &&
+          other.isMajor == this.isMajor &&
+          other.items == this.items &&
+          other.note == this.note);
+}
+
+class SubjectProfilesCompanion extends UpdateCompanion<SubjectProfile> {
+  final Value<int> id;
+  final Value<String> groupName;
+  final Value<String> subjectKey;
+  final Value<String> subject;
+  final Value<bool> isMajor;
+  final Value<String> items;
+  final Value<String?> note;
+  const SubjectProfilesCompanion({
+    this.id = const Value.absent(),
+    this.groupName = const Value.absent(),
+    this.subjectKey = const Value.absent(),
+    this.subject = const Value.absent(),
+    this.isMajor = const Value.absent(),
+    this.items = const Value.absent(),
+    this.note = const Value.absent(),
+  });
+  SubjectProfilesCompanion.insert({
+    this.id = const Value.absent(),
+    required String groupName,
+    required String subjectKey,
+    required String subject,
+    this.isMajor = const Value.absent(),
+    this.items = const Value.absent(),
+    this.note = const Value.absent(),
+  })  : groupName = Value(groupName),
+        subjectKey = Value(subjectKey),
+        subject = Value(subject);
+  static Insertable<SubjectProfile> custom({
+    Expression<int>? id,
+    Expression<String>? groupName,
+    Expression<String>? subjectKey,
+    Expression<String>? subject,
+    Expression<bool>? isMajor,
+    Expression<String>? items,
+    Expression<String>? note,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (groupName != null) 'group_name': groupName,
+      if (subjectKey != null) 'subject_key': subjectKey,
+      if (subject != null) 'subject': subject,
+      if (isMajor != null) 'is_major': isMajor,
+      if (items != null) 'items': items,
+      if (note != null) 'note': note,
+    });
+  }
+
+  SubjectProfilesCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? groupName,
+      Value<String>? subjectKey,
+      Value<String>? subject,
+      Value<bool>? isMajor,
+      Value<String>? items,
+      Value<String?>? note}) {
+    return SubjectProfilesCompanion(
+      id: id ?? this.id,
+      groupName: groupName ?? this.groupName,
+      subjectKey: subjectKey ?? this.subjectKey,
+      subject: subject ?? this.subject,
+      isMajor: isMajor ?? this.isMajor,
+      items: items ?? this.items,
+      note: note ?? this.note,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (groupName.present) {
+      map['group_name'] = Variable<String>(groupName.value);
+    }
+    if (subjectKey.present) {
+      map['subject_key'] = Variable<String>(subjectKey.value);
+    }
+    if (subject.present) {
+      map['subject'] = Variable<String>(subject.value);
+    }
+    if (isMajor.present) {
+      map['is_major'] = Variable<bool>(isMajor.value);
+    }
+    if (items.present) {
+      map['items'] = Variable<String>(items.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectProfilesCompanion(')
+          ..write('id: $id, ')
+          ..write('groupName: $groupName, ')
+          ..write('subjectKey: $subjectKey, ')
+          ..write('subject: $subject, ')
+          ..write('isMajor: $isMajor, ')
+          ..write('items: $items, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1601,12 +2417,21 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SubstitutionsTable substitutions = $SubstitutionsTable(this);
   late final $AppMetaTable appMeta = $AppMetaTable(this);
   late final $HomeworksTable homeworks = $HomeworksTable(this);
+  late final $AttendancesTable attendances = $AttendancesTable(this);
+  late final $SubjectProfilesTable subjectProfiles =
+      $SubjectProfilesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [lessons, substitutions, appMeta, homeworks];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        lessons,
+        substitutions,
+        appMeta,
+        homeworks,
+        attendances,
+        subjectProfiles
+      ];
 }
 
 typedef $$LessonsTableCreateCompanionBuilder = LessonsCompanion Function({
@@ -2398,6 +3223,412 @@ typedef $$HomeworksTableProcessedTableManager = ProcessedTableManager<
     (Homework, BaseReferences<_$AppDatabase, $HomeworksTable, Homework>),
     Homework,
     PrefetchHooks Function()>;
+typedef $$AttendancesTableCreateCompanionBuilder = AttendancesCompanion
+    Function({
+  Value<int> id,
+  required DateTime date,
+  required String groupName,
+  required int pairNumber,
+  Value<String> subgroup,
+  required String subject,
+  required AttendanceStatus status,
+  Value<DateTime> markedAt,
+});
+typedef $$AttendancesTableUpdateCompanionBuilder = AttendancesCompanion
+    Function({
+  Value<int> id,
+  Value<DateTime> date,
+  Value<String> groupName,
+  Value<int> pairNumber,
+  Value<String> subgroup,
+  Value<String> subject,
+  Value<AttendanceStatus> status,
+  Value<DateTime> markedAt,
+});
+
+class $$AttendancesTableFilterComposer
+    extends Composer<_$AppDatabase, $AttendancesTable> {
+  $$AttendancesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+      column: $table.date, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get groupName => $composableBuilder(
+      column: $table.groupName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get pairNumber => $composableBuilder(
+      column: $table.pairNumber, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get subgroup => $composableBuilder(
+      column: $table.subgroup, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get subject => $composableBuilder(
+      column: $table.subject, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<AttendanceStatus, AttendanceStatus, int>
+      get status => $composableBuilder(
+          column: $table.status,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<DateTime> get markedAt => $composableBuilder(
+      column: $table.markedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$AttendancesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AttendancesTable> {
+  $$AttendancesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+      column: $table.date, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get groupName => $composableBuilder(
+      column: $table.groupName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get pairNumber => $composableBuilder(
+      column: $table.pairNumber, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get subgroup => $composableBuilder(
+      column: $table.subgroup, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get subject => $composableBuilder(
+      column: $table.subject, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get markedAt => $composableBuilder(
+      column: $table.markedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$AttendancesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AttendancesTable> {
+  $$AttendancesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<String> get groupName =>
+      $composableBuilder(column: $table.groupName, builder: (column) => column);
+
+  GeneratedColumn<int> get pairNumber => $composableBuilder(
+      column: $table.pairNumber, builder: (column) => column);
+
+  GeneratedColumn<String> get subgroup =>
+      $composableBuilder(column: $table.subgroup, builder: (column) => column);
+
+  GeneratedColumn<String> get subject =>
+      $composableBuilder(column: $table.subject, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<AttendanceStatus, int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get markedAt =>
+      $composableBuilder(column: $table.markedAt, builder: (column) => column);
+}
+
+class $$AttendancesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AttendancesTable,
+    Attendance,
+    $$AttendancesTableFilterComposer,
+    $$AttendancesTableOrderingComposer,
+    $$AttendancesTableAnnotationComposer,
+    $$AttendancesTableCreateCompanionBuilder,
+    $$AttendancesTableUpdateCompanionBuilder,
+    (Attendance, BaseReferences<_$AppDatabase, $AttendancesTable, Attendance>),
+    Attendance,
+    PrefetchHooks Function()> {
+  $$AttendancesTableTableManager(_$AppDatabase db, $AttendancesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AttendancesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AttendancesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AttendancesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<DateTime> date = const Value.absent(),
+            Value<String> groupName = const Value.absent(),
+            Value<int> pairNumber = const Value.absent(),
+            Value<String> subgroup = const Value.absent(),
+            Value<String> subject = const Value.absent(),
+            Value<AttendanceStatus> status = const Value.absent(),
+            Value<DateTime> markedAt = const Value.absent(),
+          }) =>
+              AttendancesCompanion(
+            id: id,
+            date: date,
+            groupName: groupName,
+            pairNumber: pairNumber,
+            subgroup: subgroup,
+            subject: subject,
+            status: status,
+            markedAt: markedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required DateTime date,
+            required String groupName,
+            required int pairNumber,
+            Value<String> subgroup = const Value.absent(),
+            required String subject,
+            required AttendanceStatus status,
+            Value<DateTime> markedAt = const Value.absent(),
+          }) =>
+              AttendancesCompanion.insert(
+            id: id,
+            date: date,
+            groupName: groupName,
+            pairNumber: pairNumber,
+            subgroup: subgroup,
+            subject: subject,
+            status: status,
+            markedAt: markedAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$AttendancesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $AttendancesTable,
+    Attendance,
+    $$AttendancesTableFilterComposer,
+    $$AttendancesTableOrderingComposer,
+    $$AttendancesTableAnnotationComposer,
+    $$AttendancesTableCreateCompanionBuilder,
+    $$AttendancesTableUpdateCompanionBuilder,
+    (Attendance, BaseReferences<_$AppDatabase, $AttendancesTable, Attendance>),
+    Attendance,
+    PrefetchHooks Function()>;
+typedef $$SubjectProfilesTableCreateCompanionBuilder = SubjectProfilesCompanion
+    Function({
+  Value<int> id,
+  required String groupName,
+  required String subjectKey,
+  required String subject,
+  Value<bool> isMajor,
+  Value<String> items,
+  Value<String?> note,
+});
+typedef $$SubjectProfilesTableUpdateCompanionBuilder = SubjectProfilesCompanion
+    Function({
+  Value<int> id,
+  Value<String> groupName,
+  Value<String> subjectKey,
+  Value<String> subject,
+  Value<bool> isMajor,
+  Value<String> items,
+  Value<String?> note,
+});
+
+class $$SubjectProfilesTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectProfilesTable> {
+  $$SubjectProfilesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get groupName => $composableBuilder(
+      column: $table.groupName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get subjectKey => $composableBuilder(
+      column: $table.subjectKey, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get subject => $composableBuilder(
+      column: $table.subject, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isMajor => $composableBuilder(
+      column: $table.isMajor, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get items => $composableBuilder(
+      column: $table.items, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnFilters(column));
+}
+
+class $$SubjectProfilesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectProfilesTable> {
+  $$SubjectProfilesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get groupName => $composableBuilder(
+      column: $table.groupName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get subjectKey => $composableBuilder(
+      column: $table.subjectKey, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get subject => $composableBuilder(
+      column: $table.subject, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isMajor => $composableBuilder(
+      column: $table.isMajor, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get items => $composableBuilder(
+      column: $table.items, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnOrderings(column));
+}
+
+class $$SubjectProfilesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectProfilesTable> {
+  $$SubjectProfilesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get groupName =>
+      $composableBuilder(column: $table.groupName, builder: (column) => column);
+
+  GeneratedColumn<String> get subjectKey => $composableBuilder(
+      column: $table.subjectKey, builder: (column) => column);
+
+  GeneratedColumn<String> get subject =>
+      $composableBuilder(column: $table.subject, builder: (column) => column);
+
+  GeneratedColumn<bool> get isMajor =>
+      $composableBuilder(column: $table.isMajor, builder: (column) => column);
+
+  GeneratedColumn<String> get items =>
+      $composableBuilder(column: $table.items, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+}
+
+class $$SubjectProfilesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SubjectProfilesTable,
+    SubjectProfile,
+    $$SubjectProfilesTableFilterComposer,
+    $$SubjectProfilesTableOrderingComposer,
+    $$SubjectProfilesTableAnnotationComposer,
+    $$SubjectProfilesTableCreateCompanionBuilder,
+    $$SubjectProfilesTableUpdateCompanionBuilder,
+    (
+      SubjectProfile,
+      BaseReferences<_$AppDatabase, $SubjectProfilesTable, SubjectProfile>
+    ),
+    SubjectProfile,
+    PrefetchHooks Function()> {
+  $$SubjectProfilesTableTableManager(
+      _$AppDatabase db, $SubjectProfilesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectProfilesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SubjectProfilesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SubjectProfilesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> groupName = const Value.absent(),
+            Value<String> subjectKey = const Value.absent(),
+            Value<String> subject = const Value.absent(),
+            Value<bool> isMajor = const Value.absent(),
+            Value<String> items = const Value.absent(),
+            Value<String?> note = const Value.absent(),
+          }) =>
+              SubjectProfilesCompanion(
+            id: id,
+            groupName: groupName,
+            subjectKey: subjectKey,
+            subject: subject,
+            isMajor: isMajor,
+            items: items,
+            note: note,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String groupName,
+            required String subjectKey,
+            required String subject,
+            Value<bool> isMajor = const Value.absent(),
+            Value<String> items = const Value.absent(),
+            Value<String?> note = const Value.absent(),
+          }) =>
+              SubjectProfilesCompanion.insert(
+            id: id,
+            groupName: groupName,
+            subjectKey: subjectKey,
+            subject: subject,
+            isMajor: isMajor,
+            items: items,
+            note: note,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SubjectProfilesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $SubjectProfilesTable,
+    SubjectProfile,
+    $$SubjectProfilesTableFilterComposer,
+    $$SubjectProfilesTableOrderingComposer,
+    $$SubjectProfilesTableAnnotationComposer,
+    $$SubjectProfilesTableCreateCompanionBuilder,
+    $$SubjectProfilesTableUpdateCompanionBuilder,
+    (
+      SubjectProfile,
+      BaseReferences<_$AppDatabase, $SubjectProfilesTable, SubjectProfile>
+    ),
+    SubjectProfile,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2410,4 +3641,8 @@ class $AppDatabaseManager {
       $$AppMetaTableTableManager(_db, _db.appMeta);
   $$HomeworksTableTableManager get homeworks =>
       $$HomeworksTableTableManager(_db, _db.homeworks);
+  $$AttendancesTableTableManager get attendances =>
+      $$AttendancesTableTableManager(_db, _db.attendances);
+  $$SubjectProfilesTableTableManager get subjectProfiles =>
+      $$SubjectProfilesTableTableManager(_db, _db.subjectProfiles);
 }

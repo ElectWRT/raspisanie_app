@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../../../core/database/database.dart';
 
 import '../../domain/entities/schedule_slot.dart';
 
@@ -15,10 +16,27 @@ class LessonCard extends StatelessWidget {
     this.isPast = false,
     this.homeworkCount = 0,
     this.entranceIndex,
+    this.attendance,
+    this.onAttendanceTap,
+    this.requiredItems = const [],
+    this.isMajorSubject = false,
   });
 
   final ScheduleSlot slot;
   final BellTime? bell;
+
+  /// Отметка посещения. null — пара ещё не отмечена.
+  final AttendanceStatus? attendance;
+
+  /// Тап по кружку отметки. null убирает кружок совсем — например,
+  /// в превью настроек, где отмечать нечего.
+  final VoidCallback? onAttendanceTap;
+
+  /// Что взять на пару из профиля предмета.
+  final List<String> requiredItems;
+
+  /// Профильный предмет — помечаем, потому что пропуск дороже.
+  final bool isMajorSubject;
 
   /// Плотная вёрстка — меньше отступов, скрыта строка «было».
   final bool compact;
@@ -87,8 +105,13 @@ class LessonCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (slot.isSubstitution || isNow)
-                    _Badges(slot: slot, accent: accent, isNow: isNow),
+                  if (slot.isSubstitution || isNow || isMajorSubject)
+                    _Badges(
+                      slot: slot,
+                      accent: accent,
+                      isNow: isNow,
+                      isMajor: isMajorSubject,
+                    ),
                   Text(
                     slot.isCancelled ? 'Пара снята' : slot.subject,
                     style: (compact
@@ -141,6 +164,25 @@ class LessonCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                  if (!slot.isCancelled && requiredItems.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.backpack_outlined,
+                              size: 14, color: scheme.primary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Взять: ${requiredItems.join(', ')}',
+                              style: theme.textTheme.labelSmall
+                                  ?.copyWith(color: scheme.primary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (slot.note != null && slot.note!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
@@ -153,6 +195,14 @@ class LessonCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (onAttendanceTap != null && !slot.isCancelled)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: _AttendanceDot(
+                  status: attendance,
+                  onTap: onAttendanceTap!,
+                ),
+              ),
           ],
         ),
       ),
@@ -181,16 +231,67 @@ class LessonCard extends StatelessWidget {
   }
 }
 
+/// Кружок отметки посещения. Тап прокручивает состояния по кругу:
+/// не отмечено → был → пропустил → уважительная → снова не отмечено.
+/// Отдельного экрана не нужно — отмечать удобнее прямо в списке.
+class _AttendanceDot extends StatelessWidget {
+  const _AttendanceDot({required this.status, required this.onTap});
+
+  final AttendanceStatus? status;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (icon, color, tooltip) = switch (status) {
+      null => (
+          Icons.radio_button_unchecked,
+          scheme.outline,
+          'Не отмечено — нажмите, чтобы отметить'
+        ),
+      AttendanceStatus.present => (
+          Icons.check_circle,
+          scheme.primary,
+          'Был на паре'
+        ),
+      AttendanceStatus.absent => (
+          Icons.cancel,
+          scheme.error,
+          'Пропустил'
+        ),
+      AttendanceStatus.excused => (
+          Icons.verified_outlined,
+          scheme.tertiary,
+          'Пропустил по уважительной причине'
+        ),
+    };
+
+    return Tooltip(
+      message: tooltip,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 22,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(icon, size: 22, color: color),
+        ),
+      ),
+    );
+  }
+}
+
 class _Badges extends StatelessWidget {
   const _Badges({
     required this.slot,
     required this.accent,
     required this.isNow,
+    this.isMajor = false,
   });
 
   final ScheduleSlot slot;
   final Color accent;
   final bool isNow;
+  final bool isMajor;
 
   @override
   Widget build(BuildContext context) {
@@ -202,6 +303,7 @@ class _Badges extends StatelessWidget {
       if (slot.isSubstitution)
         (slot.isCancelled ? 'ПАРА СНЯТА' : 'ЗАМЕНА', accent),
       if (slot.isExtra) ('ДОБАВЛЕНА', accent),
+      if (isMajor && !slot.isCancelled) ('ПРОФИЛЬНЫЙ', scheme.secondary),
       if (slot.subgroup != null) ('${slot.subgroup} подгруппа', accent),
     ];
 
