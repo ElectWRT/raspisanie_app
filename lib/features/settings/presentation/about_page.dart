@@ -74,6 +74,12 @@ class AboutPage extends StatelessWidget {
             subtitle: AppInfo.repositoryUrl,
             url: AppInfo.repositoryUrl,
           ),
+          const _LinkTile(
+            icon: Icons.system_update_outlined,
+            title: 'Обновлять через Obtainium',
+            subtitle: 'Новые версии будут ставиться сами, прямо с GitHub',
+            url: AppInfo.obtainiumUrl,
+          ),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),

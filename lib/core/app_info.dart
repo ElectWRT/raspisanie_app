@@ -8,6 +8,16 @@ class AppInfo {
 
   static const repositoryUrl = 'https://github.com/ElectWRT/raspisanie_app';
 
+  /// Добавляет приложение в Obtainium — тот следит за релизами на GitHub
+  /// и сам ставит обновления.
+  ///
+  /// Через страницу-редирект, а не напрямую `obtainium://`: браузеры не
+  /// всегда открывают нестандартные схемы по ссылке, а редирект в таком
+  /// случае показывает кнопку и предлагает скачать Obtainium, если его нет.
+  static const obtainiumUrl =
+      'https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/'
+      '$repositoryUrl';
+
   static const authorName = 'ElectWRT';
   static const authorUrl = 'https://github.com/ElectWRT';
 
