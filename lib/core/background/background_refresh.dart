@@ -73,11 +73,15 @@ Future<bool> runBackgroundRefresh() async {
     // документ, — и раньше фон качал только его, а о завтрашних молчал.
     final outcome = await repository.refreshUpcoming();
 
-    return outcome.fold(
+    // await обязателен. Без него return отдаёт незавершённый Future, finally
+    // тут же закрывает базу, а ветка ниже ещё читает из неё — и падает уже
+    // после того, как catch перестал что-либо ловить. Из-за этого фоновые
+    // уведомления о заменах не показывались вообще.
+    return await outcome.fold<Future<bool>>(
       // Сайт недоступен или замен ещё нет — это не сбой задачи,
       // повторим по расписанию. Возврат false заставил бы WorkManager
       // ретраить с нарастающей задержкой.
-      (failure) => true,
+      (failure) async => true,
       (reports) async {
         for (final report in reports) {
           final date = WeekUtils.dayKey(report.date);
