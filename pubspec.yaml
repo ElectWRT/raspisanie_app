@@ -1,7 +1,7 @@
 name: raspisanie_app
 description: "Расписание занятий с автоматическим подтягиванием замен."
 publish_to: 'none'
-version: 1.5.0+12
+version: 1.6.0+13
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
