@@ -100,6 +100,10 @@ class HomePage extends StatelessWidget {
           'Замены на ${WeekUtils.formatFullDate(report.date)}: '
           '${report.importedCount} шт.',
         ),
+        // Снэкбар с кнопкой Flutter по умолчанию не закрывает сам
+        // (persist = action != null) — сообщение висело до ручного свайпа.
+        persist: false,
+        duration: const Duration(seconds: 4),
         action: SnackBarAction(
           label: 'Открыть',
           onPressed: () => Navigator.of(context).push(
