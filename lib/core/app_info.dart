@@ -8,6 +8,27 @@ class AppInfo {
 
   static const repositoryUrl = 'https://github.com/ElectWRT/raspisanie_app';
 
+  /// Страница последнего релиза — её и отправляем друзьям: там APK
+  /// и инструкция, а знать про Obtainium заранее не нужно.
+  static const latestReleaseUrl = '$repositoryUrl/releases/latest';
+
+  /// Новый issue с заготовкой текста и версией приложения — чтобы
+  /// в сообщении об ошибке сразу было понятно, о какой сборке речь.
+  static String get newIssueUrl => Uri.parse('$repositoryUrl/issues/new')
+      .replace(queryParameters: {
+        'body': '**Что случилось:**\n\n\n'
+            '**Как повторить:**\n1. \n\n'
+            '**Что ожидалось:**\n\n\n'
+            '---\nВерсия приложения: $version',
+      })
+      .toString();
+
+  /// Текст, который уходит через «Поделиться».
+  static const shareText =
+      '«Расписание» — пары КХАМК с автоматическими заменами, учётом пропусков '
+      'и напоминаниями. Бесплатно, без рекламы и регистрации.\n'
+      'Скачать: $latestReleaseUrl';
+
   /// Добавляет приложение в Obtainium — тот следит за релизами на GitHub
   /// и сам ставит обновления.
   ///

@@ -17,6 +17,8 @@ import 'features/homework/presentation/bloc/homework_cubit.dart';
 import 'features/schedule/domain/repositories/schedule_repository.dart';
 import 'features/schedule/presentation/bloc/schedule_cubit.dart';
 import 'features/schedule/presentation/pages/home_page.dart';
+import 'features/settings/domain/thanks_prompt.dart';
+import 'features/settings/presentation/widgets/thanks_dialog.dart';
 import 'features/substitutions/domain/repositories/substitutions_repository.dart';
 import 'features/substitutions/presentation/bloc/substitutions_cubit.dart';
 
@@ -45,9 +47,44 @@ class _RaspisanieAppState extends State<RaspisanieApp>
     // уведомлению — такой payload стрим тапов не увидит, у него отдельный
     // путь. Проверяем один раз, как только появится Navigator.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final settings = getIt<AppSettings>();
+      await settings.recordLaunch();
+
       final payload = await notifications.consumeLaunchPayload();
-      if (payload != null) _handlePayload(payload);
+      if (payload != null) {
+        // Открыли тапом по уведомлению — человек пришёл за конкретным
+        // делом, благодарность подождёт до обычного запуска.
+        _handlePayload(payload);
+        return;
+      }
+      await _maybeThank(settings);
     });
+  }
+
+  /// Изредка показывает окно «спасибо, что пользуетесь».
+  Future<void> _maybeThank(AppSettings settings) async {
+    final due = shouldShowThanks(
+      launchCount: settings.launchCount,
+      lastShown: settings.thanksShownAt,
+      now: DateTime.now(),
+    );
+    if (!due) return;
+
+    // Пока расписание не импортировано, благодарить не за что — человек
+    // ещё на экране первой настройки.
+    if (!await getIt<ScheduleRepository>().hasSchedule) return;
+
+    // Даём главному экрану открыться, чтобы окно не выскочило поверх
+    // заставки загрузки.
+    await Future<void>.delayed(const Duration(seconds: 2));
+    final context = _navigatorKey.currentContext;
+    if (!mounted || context == null || !context.mounted) return;
+
+    // Отмечаем до показа: если приложение закроют с открытым окном,
+    // на следующем запуске оно не выскочит снова.
+    await settings.setThanksShownAt(DateTime.now());
+    if (!context.mounted) return;
+    await showThanksDialog(context);
   }
 
   void _handlePayload(String payload) {

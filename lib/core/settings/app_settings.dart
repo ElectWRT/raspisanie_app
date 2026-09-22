@@ -35,6 +35,8 @@ class AppSettings extends ChangeNotifier {
   static const _kShowSkipAdvice = 'show_skip_advice';
   static const _kSkipLimit = 'skip_limit_per_subject';
   static const _kSkipLimitMajor = 'skip_limit_per_major_subject';
+  static const _kLaunchCount = 'launch_count';
+  static const _kThanksShownAt = 'thanks_shown_at';
 
   /// Страница учебного заведения, где завуч публикует ссылки на замены.
   static const defaultSourcePageUrl =
@@ -138,6 +140,24 @@ class AppSettings extends ChangeNotifier {
 
   /// То же для профильных предметов — по ним спрашивают строже.
   int get skipLimitPerMajorSubject => _prefs.getInt(_kSkipLimitMajor) ?? 2;
+
+  /// Сколько раз приложение запускалось. Нужно окну благодарности —
+  /// в резервную копию не входит: это про устройство, а не про данные.
+  int get launchCount => _prefs.getInt(_kLaunchCount) ?? 0;
+
+  /// Когда в последний раз показывали окно благодарности.
+  DateTime? get thanksShownAt {
+    final raw = _prefs.getString(_kThanksShownAt);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  /// Засчитывает запуск. Без notifyListeners: интерфейсу перестраиваться
+  /// из-за счётчика незачем.
+  Future<void> recordLaunch() =>
+      _prefs.setInt(_kLaunchCount, launchCount + 1);
+
+  Future<void> setThanksShownAt(DateTime value) =>
+      _prefs.setString(_kThanksShownAt, value.toIso8601String());
 
   Future<void> setSelectedGroup(String? value) async {
     if (value == null) {
