@@ -65,9 +65,11 @@ flutter:
 flutter_launcher_icons:
   android: true
   image_path: "assets/icon/app_icon.png"
-  # Источник уже содержит собственную белую подложку-скруглённый квадрат
-  # с прозрачными углами — используем его и как обычную иконку,
-  # и как foreground adaptive icon с тем же белым фоном.
-  adaptive_icon_background: "#FFFFFF"
+  # Источник уже содержит собственную подложку — кремовый скруглённый
+  # квадрат с прозрачными углами. Используем его и как обычную иконку,
+  # и как foreground adaptive icon. Фон — тот же кремовый, что у края
+  # квадрата: под круглой маской вокруг квадрата остаётся полоска фона,
+  # и с белым она читалась бы как рамка.
+  adaptive_icon_background: "#FCECD1"
   adaptive_icon_foreground: "assets/icon/app_icon.png"
   min_sdk_android: 24
