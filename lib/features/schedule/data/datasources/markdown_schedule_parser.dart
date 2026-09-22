@@ -28,6 +28,35 @@ class ScheduleImportResult {
   bool get isEmpty => lessons.isEmpty;
 
   List<String> get groups => lessonsPerGroup.keys.toList()..sort();
+
+  /// Тот же результат, но группа [from] называется [to].
+  ///
+  /// Нужно, когда название распознано не так: нейросеть подписала файл
+  /// чужой группой или написала заглушку. Без переименования такой импорт
+  /// молча перезаписал бы расписание той группы, чьё имя попало в файл.
+  /// Если [to] уже есть в файле, пары двух групп сливаются в одну.
+  ScheduleImportResult renameGroup(String from, String to) {
+    final target = to.trim();
+    if (target.isEmpty || target == from) return this;
+
+    final perGroup = <String, int>{};
+    for (final entry in lessonsPerGroup.entries) {
+      final key = entry.key == from ? target : entry.key;
+      perGroup[key] = (perGroup[key] ?? 0) + entry.value;
+    }
+
+    return ScheduleImportResult(
+      lessons: [
+        for (final lesson in lessons)
+          lesson.groupName.value == from
+              ? lesson.copyWith(groupName: Value(target))
+              : lesson,
+      ],
+      bellSchedules: bellSchedules,
+      lessonsPerGroup: perGroup,
+      warnings: warnings,
+    );
+  }
 }
 
 /// Разбирает расписание в Markdown. Формат описан в `docs/SCHEDULE_FORMAT.md`.
@@ -181,7 +210,11 @@ class MarkdownScheduleParser {
         // Заголовок верхнего уровня без дня недели — считаем названием группы.
         if (level <= 2) {
           inBellsSection = false;
-          currentGroup = title.replaceFirst(_groupPrefix, '').trim();
+          // «Группа ИС-2301» → «ИС-2301». Но если после префикса пусто —
+          // заголовок был просто «Группа», и срезать нечего: иначе пары
+          // легли бы в группу с пустым названием.
+          final stripped = title.replaceFirst(_groupPrefix, '').trim();
+          currentGroup = stripped.isEmpty ? title : stripped;
           currentDay = null;
           perGroup.putIfAbsent(currentGroup, () => 0);
         }
@@ -262,7 +295,7 @@ class MarkdownScheduleParser {
     if (lessons.isEmpty) {
       throw ParsingException(
         'Не удалось распознать ни одной пары. Проверьте, что в файле есть '
-        'заголовок с группой («# СА-2124») и дни недели («## Понедельник»).',
+        'заголовок с группой («# ИС-2301») и дни недели («## Понедельник»).',
       );
     }
 

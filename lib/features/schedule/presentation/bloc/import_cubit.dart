@@ -14,12 +14,20 @@ class ImportState extends Equatable {
   final ScheduleImportResult? result;
   final String? error;
 
+  /// Группы, расписание которых уже лежит в базе. По ним предпросмотр
+  /// предупреждает, что импорт их перезапишет.
+  final Set<String> existingGroups;
+
   const ImportState({
     this.status = ImportStatus.editing,
     this.markdown = '',
     this.result,
     this.error,
+    this.existingGroups = const {},
   });
+
+  /// Группа из файла заменит уже загруженное расписание.
+  bool replacesExisting(String group) => existingGroups.contains(group);
 
   ImportState copyWith({
     ImportStatus? status,
@@ -28,17 +36,19 @@ class ImportState extends Equatable {
     bool clearResult = false,
     String? error,
     bool clearError = false,
+    Set<String>? existingGroups,
   }) {
     return ImportState(
       status: status ?? this.status,
       markdown: markdown ?? this.markdown,
       result: clearResult ? null : (result ?? this.result),
       error: clearError ? null : (error ?? this.error),
+      existingGroups: existingGroups ?? this.existingGroups,
     );
   }
 
   @override
-  List<Object?> get props => [status, markdown, result, error];
+  List<Object?> get props => [status, markdown, result, error, existingGroups];
 }
 
 class ImportCubit extends Cubit<ImportState> {
@@ -53,8 +63,11 @@ class ImportCubit extends Cubit<ImportState> {
         clearError: true,
       ));
 
-  void check() {
+  Future<void> check() async {
     final outcome = repository.preview(state.markdown);
+    final existing = await _existingGroups();
+    if (isClosed) return;
+
     outcome.fold(
       (failure) => emit(state.copyWith(
         status: ImportStatus.error,
@@ -64,9 +77,17 @@ class ImportCubit extends Cubit<ImportState> {
       (result) => emit(state.copyWith(
         status: ImportStatus.previewed,
         result: result,
+        existingGroups: existing,
         clearError: true,
       )),
     );
+  }
+
+  /// Переименовывает группу в распознанном файле до сохранения.
+  void renameGroup(String from, String to) {
+    final result = state.result;
+    if (result == null) return;
+    emit(state.copyWith(result: result.renameGroup(from, to)));
   }
 
   Future<void> save() async {
@@ -82,5 +103,15 @@ class ImportCubit extends Cubit<ImportState> {
       )),
       (_) => emit(state.copyWith(status: ImportStatus.saved)),
     );
+  }
+
+  Future<Set<String>> _existingGroups() async {
+    try {
+      return (await repository.watchGroups().first).toSet();
+    } catch (_) {
+      // Без списка групп предпросмотр просто не предупредит о перезаписи —
+      // это не повод не дать импортировать.
+      return const {};
+    }
   }
 }

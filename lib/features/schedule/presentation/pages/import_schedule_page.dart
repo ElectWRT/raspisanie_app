@@ -94,7 +94,7 @@ class _ImportViewState extends State<_ImportView> {
                   decoration: const InputDecoration(
                     labelText: 'Markdown с расписанием',
                     alignLabelWithHint: true,
-                    hintText: '# СА-2124\n\n## Понедельник\n'
+                    hintText: '# ИС-2301\n\n## Понедельник\n'
                         '1. Компьютерные сети | Иванов И.И. | 301',
                   ),
                   onChanged: context.read<ImportCubit>().setMarkdown,
@@ -112,7 +112,11 @@ class _ImportViewState extends State<_ImportView> {
                 ],
                 if (state.result != null) ...[
                   const SizedBox(height: 16),
-                  _PreviewBox(result: state.result!),
+                  _PreviewBox(
+                    result: state.result!,
+                    replacesExisting: state.replacesExisting,
+                    onRename: (group) => _renameGroup(context, group),
+                  ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
                     onPressed: state.status == ImportStatus.saving
@@ -127,8 +131,9 @@ class _ImportViewState extends State<_ImportView> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Пары перечисленных групп будут перезаписаны. '
-                    'Расписание остальных групп не изменится.',
+                    'Если название группы распознано не так — поправьте его '
+                    'карандашом, иначе расписание ляжет не в ту группу. '
+                    'Группы, которых нет в файле, не изменятся.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -182,12 +187,52 @@ class _ImportViewState extends State<_ImportView> {
 
   void _snack(String message) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(message)));
+
+  Future<void> _renameGroup(BuildContext context, String group) async {
+    final cubit = context.read<ImportCubit>();
+    final controller = TextEditingController(text: group);
+
+    final renamed = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Название группы'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(hintText: 'Например, ИС-2301'),
+          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: const Text('Готово'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (renamed != null) cubit.renameGroup(group, renamed);
+  }
 }
 
 class _PreviewBox extends StatelessWidget {
-  const _PreviewBox({required this.result});
+  const _PreviewBox({
+    required this.result,
+    required this.replacesExisting,
+    required this.onRename,
+  });
 
   final ScheduleImportResult result;
+
+  /// Есть ли группа с таким названием уже в базе.
+  final bool Function(String group) replacesExisting;
+  final void Function(String group) onRename;
 
   @override
   Widget build(BuildContext context) {
@@ -212,12 +257,15 @@ class _PreviewBox extends StatelessWidget {
               Text('Распознано', style: theme.textTheme.titleSmall),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           for (final entry in perGroup.entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text('${entry.key} — ${entry.value} пар'),
+            _GroupRow(
+              group: entry.key,
+              lessons: entry.value,
+              replaces: replacesExisting(entry.key),
+              onRename: () => onRename(entry.key),
             ),
+          const SizedBox(height: 4),
           for (final schedule in result.bellSchedules)
             Text('${schedule.name} — ${schedule.times.length} пар'),
           if (warnings.isNotEmpty) ...[
@@ -252,6 +300,60 @@ class _PreviewBox extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Строка группы в предпросмотре: название, число пар, что будет при
+/// сохранении и кнопка переименования.
+class _GroupRow extends StatelessWidget {
+  const _GroupRow({
+    required this.group,
+    required this.lessons,
+    required this.replaces,
+    required this.onRename,
+  });
+
+  final String group;
+  final int lessons;
+
+  /// Группа уже есть в базе — её расписание будет заменено.
+  final bool replaces;
+  final VoidCallback onRename;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$group — $lessons пар',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                replaces
+                    ? 'Уже есть — расписание будет заменено'
+                    : 'Новая группа — добавится к остальным',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: replaces ? scheme.tertiary : scheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Переименовать группу',
+          icon: const Icon(Icons.edit_outlined, size: 20),
+          onPressed: onRename,
+        ),
+      ],
     );
   }
 }

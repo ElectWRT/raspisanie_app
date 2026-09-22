@@ -3,10 +3,25 @@ import 'package:flutter/services.dart';
 
 /// Справка по формату импорта: спецификация, пример и готовый промпт,
 /// которым удобно превращать фото/таблицу расписания в нужный Markdown.
-class ScheduleFormatPage extends StatelessWidget {
+class ScheduleFormatPage extends StatefulWidget {
   const ScheduleFormatPage({super.key});
 
-  static const String prompt = '''
+  /// Промпт для нейросети.
+  ///
+  /// В примере намеренно нет настоящего названия группы: раньше там стояло
+  /// «СА-2124», нейросеть переносила его в ответ как есть, и расписание
+  /// любой другой группы импортировалось под этим именем — поверх первой.
+  /// Если [group] задан, промпт прямо велит использовать это название.
+  static String buildPrompt({String? group}) {
+    final name = group?.trim() ?? '';
+    final groupRule = name.isEmpty
+        ? '- Название группы возьми из исходных данных, как там написано.\n'
+            '  Если его там нет — оставь `# НАЗВАНИЕ-ГРУППЫ`, название '
+            'поправят при импорте.'
+        : '- Группа называется «$name». Заголовок группы — ровно `# $name`,\n'
+            '  даже если в исходных данных название написано иначе.';
+
+    return '''
 Преобразуй расписание занятий в Markdown строго по формату ниже.
 Ничего не придумывай: если данных нет — оставляй поле пустым.
 В ответе верни только Markdown, без пояснений и без блока ```.
@@ -14,6 +29,7 @@ class ScheduleFormatPage extends StatelessWidget {
 ФОРМАТ
 - `# НАЗВАНИЕ-ГРУППЫ` — заголовок первого уровня начинает блок группы.
   В одном файле может быть несколько групп подряд.
+$groupRule
 - `## День недели` — Понедельник … Суббота.
 - Строка пары: `НОМЕР. Предмет | Преподаватель | Аудитория`
   Разделитель — вертикальная черта. Преподавателя и аудиторию можно опустить.
@@ -28,6 +44,9 @@ class ScheduleFormatPage extends StatelessWidget {
   Блок без указания дней считается основным.
 
 ПРИМЕР
+Пример показывает только формат. Не переноси из него ни название группы,
+ни предметы, ни преподавателей — всё бери из исходных данных.
+
 # Звонки (пн-пт)
 1. 08:30 - 10:00
 2. 10:10 - 11:40
@@ -37,7 +56,7 @@ class ScheduleFormatPage extends StatelessWidget {
 1. 08:30 - 09:30
 2. 09:40 - 10:40
 
-# СА-2124
+# НАЗВАНИЕ-ГРУППЫ
 
 ## Понедельник
 1. Компьютерные сети | Иванов И.И. | 301
@@ -52,6 +71,7 @@ class ScheduleFormatPage extends StatelessWidget {
 ИСХОДНЫЕ ДАННЫЕ
 <вставь сюда таблицу, текст или фото расписания>
 ''';
+  }
 
   static const String _spec = '''
 Приложение читает расписание из обычного текстового файла .md.
@@ -60,8 +80,8 @@ class ScheduleFormatPage extends StatelessWidget {
 
 Что понимает парсер:
 
-• `# СА-2124` — название группы. Всё, что идёт ниже, относится к ней,
-  пока не встретится следующий заголовок группы.
+• `# НАЗВАНИЕ-ГРУППЫ` — название группы, например `# ИС-2301`. Всё, что
+  идёт ниже, относится к ней, пока не встретится следующий заголовок группы.
 • `## Понедельник` — день недели. Понимаются и сокращения: Пн, Вт, Ср…
 • `1. Предмет | Преподаватель | Аудитория` — пара. Номер обязателен,
   остальное — по желанию. Вместо точки можно ставить `)` или `-`.
@@ -73,8 +93,27 @@ class ScheduleFormatPage extends StatelessWidget {
   Набор без дней в заголовке применяется ко всем остальным дням.
 • Строки Markdown-таблиц (`| 1 | Предмет | ... |`) тоже разбираются.
 
-Импорт перезаписывает пары только тех групп, которые есть в файле.
+Импорт перезаписывает пары только тех групп, которые есть в файле, —
+расписание остальных групп остаётся. Чтобы добавить ещё одну группу,
+импортируйте её файл так же. Если название группы распознано не так,
+его можно поправить на экране импорта перед сохранением.
 ''';
+
+  @override
+  State<ScheduleFormatPage> createState() => _ScheduleFormatPageState();
+}
+
+class _ScheduleFormatPageState extends State<ScheduleFormatPage> {
+  final _groupController = TextEditingController();
+
+  @override
+  void dispose() {
+    _groupController.dispose();
+    super.dispose();
+  }
+
+  String get _prompt =>
+      ScheduleFormatPage.buildPrompt(group: _groupController.text);
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +124,7 @@ class ScheduleFormatPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(_spec, style: theme.textTheme.bodyMedium),
+          Text(ScheduleFormatPage._spec, style: theme.textTheme.bodyMedium),
           const SizedBox(height: 24),
           Text('Промпт для нейросети', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -96,9 +135,22 @@ class ScheduleFormatPage extends StatelessWidget {
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 12),
+          TextField(
+            controller: _groupController,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              labelText: 'Название группы',
+              hintText: 'Например, ИС-2301',
+              helperText: 'Необязательно. Если указать — нейросеть подпишет '
+                  'расписание именно так.',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
           FilledButton.tonalIcon(
             onPressed: () async {
-              await Clipboard.setData(const ClipboardData(text: prompt));
+              await Clipboard.setData(ClipboardData(text: _prompt));
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Промпт скопирован')),
@@ -116,9 +168,9 @@ class ScheduleFormatPage extends StatelessWidget {
               color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const SelectableText(
-              prompt,
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+            child: SelectableText(
+              _prompt,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
             ),
           ),
         ],
