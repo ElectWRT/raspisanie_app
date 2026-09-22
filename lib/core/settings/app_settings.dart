@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/seasons/domain/season.dart';
+
 /// Настройки приложения. Всё хранится локально в SharedPreferences —
 /// сервера у приложения нет.
 class AppSettings extends ChangeNotifier {
@@ -37,6 +39,9 @@ class AppSettings extends ChangeNotifier {
   static const _kSkipLimitMajor = 'skip_limit_per_major_subject';
   static const _kLaunchCount = 'launch_count';
   static const _kThanksShownAt = 'thanks_shown_at';
+  static const _kSeasonMode = 'season_mode';
+  static const _kSeasonalMotion = 'seasonal_motion';
+  static const _kSeasonalParticles = 'seasonal_particle_count';
 
   /// Страница учебного заведения, где завуч публикует ссылки на замены.
   static const defaultSourcePageUrl =
@@ -158,6 +163,36 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> setThanksShownAt(DateTime value) =>
       _prefs.setString(_kThanksShownAt, value.toIso8601String());
+
+  /// Сезонное оформление главного экрана.
+  SeasonMode get seasonMode => SeasonMode.values.firstWhere(
+        (m) => m.name == _prefs.getString(_kSeasonMode),
+        orElse: () => SeasonMode.auto,
+      );
+
+  Future<void> setSeasonMode(SeasonMode value) async {
+    await _prefs.setString(_kSeasonMode, value.name);
+    notifyListeners();
+  }
+
+  /// Падающие листья, снег и прочее движущееся. Фон сезона остаётся
+  /// и без них.
+  bool get seasonalMotion => _prefs.getBool(_kSeasonalMotion) ?? true;
+
+  Future<void> setSeasonalMotion(bool value) async {
+    await _prefs.setBool(_kSeasonalMotion, value);
+    notifyListeners();
+  }
+
+  /// Сколько частиц устройство тянет без рывков — выучено по замерам
+  /// кадров. null — ещё не замеряли. В резервную копию не входит:
+  /// это свойство телефона, а не пользователя.
+  int? get seasonalParticleCount => _prefs.getInt(_kSeasonalParticles);
+
+  /// Без notifyListeners: число меняется на ходу и перестраивать из-за
+  /// него приложение незачем.
+  Future<void> setSeasonalParticleCount(int value) =>
+      _prefs.setInt(_kSeasonalParticles, value);
 
   Future<void> setSelectedGroup(String? value) async {
     if (value == null) {
@@ -344,6 +379,8 @@ class AppSettings extends ChangeNotifier {
         'showSkipAdvice': showSkipAdvice,
         'skipLimitPerSubject': skipLimitPerSubject,
         'skipLimitPerMajorSubject': skipLimitPerMajorSubject,
+        'seasonMode': seasonMode.name,
+        'seasonalMotion': seasonalMotion,
       };
 
   /// Восстанавливает настройки из резервной копии. Пропускает ключи,
@@ -430,6 +467,16 @@ class AppSettings extends ChangeNotifier {
     if (skipLimitMajor != null) {
       await setSkipLimitPerMajorSubject(skipLimitMajor);
     }
+    final season = asString('seasonMode');
+    if (season != null) {
+      await setSeasonMode(SeasonMode.values.firstWhere(
+        (m) => m.name == season,
+        orElse: () => SeasonMode.auto,
+      ));
+    }
+    if (data.containsKey('seasonalMotion')) {
+      await setSeasonalMotion(asBool('seasonalMotion') ?? true);
+    }
   }
 
   /// Сбрасывает только внешний вид, не трогая расписание и источники.
@@ -443,6 +490,8 @@ class AppSettings extends ChangeNotifier {
       _prefs.remove(_kCompact),
       _prefs.remove(_kShowWeekends),
       _prefs.remove(_kHighlightCurrent),
+      _prefs.remove(_kSeasonMode),
+      _prefs.remove(_kSeasonalMotion),
     ]);
     notifyListeners();
   }

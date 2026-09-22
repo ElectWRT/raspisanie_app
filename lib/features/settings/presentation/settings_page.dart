@@ -9,6 +9,7 @@ import '../../../core/settings/app_settings.dart';
 import '../../../core/utils/week_utils.dart';
 import '../../../di.dart';
 import '../../attendance/presentation/pages/attendance_page.dart';
+import '../../seasons/domain/season.dart';
 import '../../schedule/domain/repositories/schedule_repository.dart';
 import '../../schedule/presentation/bloc/schedule_cubit.dart';
 import '../../schedule/presentation/pages/bells_page.dart';
@@ -558,6 +559,29 @@ class _SettingsPageState extends State<SettingsPage> {
         },
       ),
       ListTile(
+        leading: const Icon(Icons.eco_outlined),
+        title: const Text('Оформление по сезону'),
+        subtitle: Text(_settings.seasonMode.label),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _pickSeasonMode,
+      ),
+      if (_settings.seasonMode != SeasonMode.off)
+        SwitchListTile(
+          secondary: const Icon(Icons.air),
+          title: const Text('Движущиеся объекты'),
+          subtitle: const Text(
+            'Падающие листья, снег, лепестки. Отключаются сами, если в '
+            'Android включено «Удалить анимации». Число подбирается под '
+            'телефон, чтобы не было рывков',
+          ),
+          isThreeLine: true,
+          value: _settings.seasonalMotion,
+          onChanged: (value) async {
+            await _settings.setSeasonalMotion(value);
+            if (mounted) setState(() {});
+          },
+        ),
+      ListTile(
         leading: const Icon(Icons.restart_alt),
         title: const Text('Сбросить внешний вид'),
         subtitle: const Text('Расписание и настройки замен не затрагиваются'),
@@ -567,6 +591,37 @@ class _SettingsPageState extends State<SettingsPage> {
         },
       ),
     ];
+  }
+
+  Future<void> _pickSeasonMode() async {
+    final picked = await showDialog<SeasonMode>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Оформление по сезону'),
+        children: [
+          RadioGroup<SeasonMode>(
+            groupValue: _settings.seasonMode,
+            onChanged: (value) => Navigator.of(dialogContext).pop(value),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final mode in SeasonMode.values)
+                  RadioListTile<SeasonMode>(
+                    value: mode,
+                    title: Text(mode.label),
+                    subtitle: mode == SeasonMode.auto
+                        ? const Text('Сезон по дате, под Новый год — гирлянда')
+                        : null,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await _settings.setSeasonMode(picked);
+    if (mounted) setState(() {});
   }
 
   // ------------------------------------------------------- источник замен

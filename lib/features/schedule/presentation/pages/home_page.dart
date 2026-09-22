@@ -11,6 +11,9 @@ import '../../../attendance/presentation/bloc/attendance_cubit.dart';
 import '../../../attendance/presentation/widgets/skip_advice_chip.dart';
 import '../../../../di.dart';
 import '../../../homework/presentation/bloc/homework_cubit.dart';
+import '../../../seasons/domain/season.dart';
+import '../../../seasons/presentation/festive_garland.dart';
+import '../../../seasons/presentation/seasonal_backdrop.dart';
 import '../../../homework/presentation/pages/homework_page.dart';
 import '../../../settings/presentation/backup_page.dart';
 import '../../../settings/presentation/settings_page.dart';
@@ -66,20 +69,45 @@ class HomePage extends StatelessWidget {
                 ),
               ],
             ),
-            body: Column(
-              children: [
-                DaySwitcher(
-                  date: state.date,
-                  onSelect: context.read<ScheduleCubit>().selectDate,
-                  showWeekends: settings.showWeekends,
-                  substitutionDays: state.substitutionWeekdays,
-                ),
-                const _RefreshBanner(),
-                const LastUpdatedLine(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                ),
-                Expanded(child: _DayBody(state: state, settings: settings)),
-              ],
+            // Сезонное оформление слушает настройки само: смена сезона или
+            // выключателя движения видна сразу, без перезагрузки экрана.
+            body: ListenableBuilder(
+              listenable: settings,
+              builder: (context, _) {
+                final now = DateTime.now();
+                final look = resolveSeasonLook(now, settings.seasonMode);
+                final dark = Theme.of(context).brightness == Brightness.dark;
+
+                return SeasonalBackdrop(
+                  look: look,
+                  motion: settings.seasonalMotion,
+                  plainBackground: dark && settings.amoledDark,
+                  initialCount: settings.seasonalParticleCount,
+                  onCountLearned: settings.setSeasonalParticleCount,
+                  child: Column(
+                    children: [
+                      if (look?.festive ?? false)
+                        FestiveGarland(
+                          greeting: festiveGreeting(now),
+                          motion: settings.seasonalMotion,
+                        ),
+                      DaySwitcher(
+                        date: state.date,
+                        onSelect: context.read<ScheduleCubit>().selectDate,
+                        showWeekends: settings.showWeekends,
+                        substitutionDays: state.substitutionWeekdays,
+                      ),
+                      const _RefreshBanner(),
+                      const LastUpdatedLine(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      ),
+                      Expanded(
+                        child: _DayBody(state: state, settings: settings),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
             floatingActionButton: const _RefreshButton(),
           );
