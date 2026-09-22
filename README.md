@@ -1,5 +1,7 @@
 # Расписание с автозаменами
 
+<a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/ElectWRT/raspisanie_app"><img src="docs/badges/badge_obtainium.png" alt="Get it on Obtainium" height="64"></a>
+
 Flutter-приложение, которое показывает расписание занятий и **само подтягивает
 замены**: находит на сайте учебного заведения ссылку на документ с заменами,
 скачивает `.docx` из облака Mail.ru, разбирает таблицу и накладывает замены
@@ -117,7 +119,8 @@ Flutter-приложение, которое показывает расписа
 [Obtainium](https://github.com/ImranR98/Obtainium) следит за релизами
 на GitHub и сам ставит новые версии — не нужно заходить сюда за каждым APK.
 
-**[➜ Добавить в Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/ElectWRT/raspisanie_app)**
+Нажмите значок **Get it on Obtainium** в начале страницы или
+**[➜ добавьте по ссылке](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/ElectWRT/raspisanie_app)**.
 
 Ссылку лучше открыть с телефона, где Obtainium уже стоит. Если его нет —
 страница предложит скачать. То же самое есть внутри приложения:
