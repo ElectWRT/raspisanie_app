@@ -13,9 +13,19 @@ import '../../domain/repositories/substitutions_repository.dart';
 import '../datasources/docx_parser.dart';
 import '../datasources/substitutions_remote_data_source.dart';
 
-/// Ключ в AppMeta: слепок замен, которые пользователь уже видел — сам в
-/// приложении или в уведомлении о них.
-const notifiedSubstitutionsKey = 'notified_substitutions_signature';
+/// Ключ в AppMeta: слепок замен на [date], которые пользователь уже видел —
+/// сам в приложении или в уведомлении о них.
+///
+/// Отдельный на каждую дату: фоновая проверка качает и сегодняшний, и
+/// завтрашний документ, и с одним общим ключом они затирали бы слепки
+/// друг друга — уведомление приходило бы при каждой проверке.
+String notifiedSignatureKey(DateTime date) {
+  final day = WeekUtils.dayKey(date);
+  return 'notified_substitutions_signature:'
+      '${day.year.toString().padLeft(4, '0')}-'
+      '${day.month.toString().padLeft(2, '0')}-'
+      '${day.day.toString().padLeft(2, '0')}';
+}
 
 /// Слепок замен на дату. Меняется, если поменялась хоть одна строка.
 ///
@@ -90,6 +100,73 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
   }
 
   @override
+  Future<Either<Failure, List<RefreshReport>>> refreshUpcoming() async {
+    // Ручная ссылка ведёт на один конкретный файл — выбирать не из чего.
+    if (settings.manualLink != null) {
+      return (await refresh()).map((report) => [report]);
+    }
+
+    try {
+      final links = _forMyBuilding(
+        await remoteDataSource.findLinks(settings.sourcePageUrl),
+      );
+      if (links.isEmpty) {
+        throw ParsingException('Ссылки на замены не найдены.');
+      }
+
+      final today = WeekUtils.dayKey(DateTime.now());
+      final upcoming = links
+          .where((l) => l.date != null && !l.date!.isBefore(today))
+          .toList()
+        ..sort((a, b) => a.date!.compareTo(b.date!));
+
+      // Дат в ссылках нет или все документы в прошлом — ведём себя
+      // как обычное обновление: берём один, самый подходящий.
+      if (upcoming.isEmpty) {
+        return (await refresh()).map((report) => [report]);
+      }
+
+      final reports = <RefreshReport>[];
+      Failure? firstFailure;
+
+      // Документы качаем по одному: сбой одного не должен отменять
+      // остальные — завтрашние замены важнее, чем битый сегодняшний файл.
+      for (final link in upcoming) {
+        try {
+          final bytes = await remoteDataSource.download(link.url);
+          final stored = await _store(
+            bytes,
+            source: link.title.isEmpty ? link.url : link.title,
+            fallbackDate: link.date,
+          );
+          stored.fold(
+            (failure) => firstFailure ??= failure,
+            (report) {
+              reports.add(report);
+              return null;
+            },
+          );
+        } on NetworkException catch (e) {
+          firstFailure ??= ServerFailure(e.message);
+        } on ParsingException catch (e) {
+          firstFailure ??= ParsingFailure(e.message);
+        }
+      }
+
+      if (reports.isEmpty) {
+        return Left(firstFailure ?? const ServerFailure('Замены не загружены.'));
+      }
+      return Right(reports);
+    } on NetworkException catch (e) {
+      return Left(ServerFailure(e.message));
+    } on ParsingException catch (e) {
+      return Left(ParsingFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Не удалось обновить замены: $e'));
+    }
+  }
+
+  @override
   Future<Either<Failure, RefreshReport>> importDocx(
     Uint8List bytes, {
     String source = 'файл с устройства',
@@ -129,7 +206,7 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
     // устаревшим слепком и прислала уведомление о том, что пользователь
     // уже прочитал в приложении.
     await database.setMeta(
-      notifiedSubstitutionsKey,
+      notifiedSignatureKey(date),
       substitutionsSignature(
         rows: await database.getSubstitutionsOnDate(date),
         date: date,
@@ -149,6 +226,18 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
     ));
   }
 
+  /// Замены выкладывают отдельным файлом на каждый корпус. Если корпус
+  /// выбран в настройках — берём только его, иначе попадём в чужой.
+  /// Ссылки без указания корпуса оставляем: они относятся ко всем.
+  List<SourceLink> _forMyBuilding(List<SourceLink> links) {
+    final building = settings.preferredBuilding;
+    if (building == null) return links;
+    final mine = links
+        .where((l) => l.building == null || l.building == building)
+        .toList();
+    return mine.isNotEmpty ? mine : links;
+  }
+
   /// Выбирает подходящую ссылку: точное совпадение с нужной датой, иначе
   /// ближайшую будущую, иначе самую свежую из найденных.
   SourceLink _pickLink(List<SourceLink> allLinks, DateTime? targetDate) {
@@ -156,17 +245,7 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
       throw ParsingException('Ссылки на замены не найдены.');
     }
 
-    // Замены выкладывают отдельным файлом на каждый корпус. Если корпус
-    // выбран в настройках — берём только его, иначе попадём в чужой.
-    // Ссылки без указания корпуса оставляем: они относятся ко всем.
-    final building = settings.preferredBuilding;
-    var links = allLinks;
-    if (building != null) {
-      final mine = allLinks
-          .where((l) => l.building == null || l.building == building)
-          .toList();
-      if (mine.isNotEmpty) links = mine;
-    }
+    final links = _forMyBuilding(allLinks);
 
     if (targetDate != null) {
       final day = WeekUtils.dayKey(targetDate);

@@ -11,6 +11,13 @@ abstract class SubstitutionsRepository {
   /// разбирает его и сохраняет в базу.
   Future<Either<Failure, RefreshReport>> refresh({DateTime? targetDate});
 
+  /// Скачивает все документы с сегодняшнего дня и дальше, а не один.
+  ///
+  /// Нужен фоновой проверке: замены на завтра выкладывают накануне, пока
+  /// на странице ещё висит сегодняшний документ. [refresh] без даты берёт
+  /// ближайший — то есть сегодняшний, — и завтрашний так и не увидит.
+  Future<Either<Failure, List<RefreshReport>>> refreshUpcoming();
+
   /// Разбирает .docx, выбранный пользователем вручную. Нужен, когда сайт
   /// недоступен или разметка поменялась.
   Future<Either<Failure, RefreshReport>> importDocx(

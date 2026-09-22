@@ -358,14 +358,18 @@ class NotificationService {
   }
 
   /// Показывает сообщение о том, что появились новые замены.
+  ///
+  /// [slot] разводит сообщения о разных днях: с одним id уведомление о
+  /// заменах на завтра стирало бы с экрана ещё не прочитанное о сегодня.
   Future<void> showSubstitutionAlert({
     required String title,
     required String body,
     String? payload,
+    int slot = 0,
   }) async {
     await init();
     await _plugin.show(
-      id: _alertIdBase + 1,
+      id: _alertIdBase + 1 + slot.clamp(0, 999),
       title: title,
       body: body,
       payload: payload,

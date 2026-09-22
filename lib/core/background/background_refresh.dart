@@ -58,38 +58,52 @@ Future<bool> runBackgroundRefresh() async {
       settings: settings,
     );
 
-    // Читаем слепок до обновления: загрузка сама перезапишет его на новый,
-    // и сравнивать было бы уже не с чем. В нём учтено и то, что
-    // пользователь успел обновить вручную, — о таком не уведомляем.
-    final previous = await database.getMeta(notifiedSubstitutionsKey);
+    // Слепки читаем до загрузки: она сама перепишет их на новые, и
+    // сравнивать будет не с чем. В них учтено и то, что пользователь уже
+    // обновил вручную, — о таком не уведомляем.
+    final today = WeekUtils.dayKey(DateTime.now());
+    final previous = <DateTime, String?>{};
+    for (var offset = 0; offset < _lookaheadDays; offset++) {
+      final date = today.add(Duration(days: offset));
+      previous[date] = await database.getMeta(notifiedSignatureKey(date));
+    }
 
-    final outcome = await repository.refresh();
+    // Все документы с сегодняшнего дня, а не один ближайший: замены на
+    // завтра выкладывают накануне, пока на странице ещё висит сегодняшний
+    // документ, — и раньше фон качал только его, а о завтрашних молчал.
+    final outcome = await repository.refreshUpcoming();
 
     return outcome.fold(
       // Сайт недоступен или замен ещё нет — это не сбой задачи,
       // повторим по расписанию. Возврат false заставил бы WorkManager
       // ретраить с нарастающей задержкой.
       (failure) => true,
-      (report) async {
-        final signature = await database!.getMeta(notifiedSubstitutionsKey);
-        if (signature == previous) return true;
+      (reports) async {
+        for (final report in reports) {
+          final date = WeekUtils.dayKey(report.date);
+          if (date.isBefore(today)) continue;
 
-        final count = await _countFor(
-          database,
-          date: report.date,
-          group: settings.selectedGroup,
-        );
-        if (count == 0) return true;
+          final signature = await database!.getMeta(notifiedSignatureKey(date));
+          if (signature == previous[date]) continue;
 
-        await notifications.showSubstitutionAlert(
-          title: 'Новые замены',
-          body: substitutionAlertBody(
-            date: report.date,
-            count: count,
+          final count = await _countFor(
+            database,
+            date: date,
             group: settings.selectedGroup,
-          ),
-          payload: NotificationPayload.forSubstitutions(report.date),
-        );
+          );
+          if (count == 0) continue;
+
+          await notifications.showSubstitutionAlert(
+            title: substitutionAlertTitle(date: date, today: today),
+            body: substitutionAlertBody(
+              date: date,
+              count: count,
+              group: settings.selectedGroup,
+            ),
+            payload: NotificationPayload.forSubstitutions(date),
+            slot: daysBetween(today, date),
+          );
+        }
         return true;
       },
     );
@@ -110,6 +124,28 @@ Future<int> _countFor(
   if (group == null) return rows.length;
   return rows.where((r) => r.groupName == group).length;
 }
+
+/// Сколько дней вперёд смотрим. Дальше двух недель завуч замены
+/// не выкладывает, а слепок на каждый день — отдельное чтение из базы.
+const _lookaheadDays = 14;
+
+/// Полных дней между двумя датами. Через UTC: при переводе часов местные
+/// сутки короче, и разница в часах, делённая на 24, дала бы на день меньше.
+int daysBetween(DateTime from, DateTime to) =>
+    DateTime.utc(to.year, to.month, to.day)
+        .difference(DateTime.utc(from.year, from.month, from.day))
+        .inDays;
+
+/// Заголовок уведомления: «на сегодня» и «на завтра» понятнее даты.
+String substitutionAlertTitle({
+  required DateTime date,
+  required DateTime today,
+}) =>
+    switch (daysBetween(today, date)) {
+      0 => 'Замены на сегодня',
+      1 => 'Замены на завтра',
+      _ => 'Новые замены',
+    };
 
 /// Текст уведомления о новых заменах.
 String substitutionAlertBody({
