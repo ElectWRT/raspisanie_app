@@ -43,6 +43,7 @@ Substitution _sub(
       teacher: teacher,
       room: room,
       isCancelled: cancelled,
+      source: '',
       note: note,
     );
 

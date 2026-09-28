@@ -39,6 +39,7 @@ void main() {
         teacher: teacher,
         room: '',
         isCancelled: cancelled,
+        source: '',
       );
 
   group('разбор ФИО', () {

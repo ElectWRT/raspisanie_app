@@ -26,7 +26,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -43,8 +43,21 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(attendances);
             await m.createTable(subjectProfiles);
           }
+          // v4: у замены запоминается документ-источник. Старые строки
+          // получают пустой источник и заменяются при первом обновлении.
+          // Колонку добавляем, только если её нет: ALTER TABLE ADD COLUMN
+          // не переживает повторного запуска, а упавшая миграция — это
+          // приложение, которое не может открыть базу.
+          if (from < 4 && !await _hasColumn('substitutions', 'source')) {
+            await m.addColumn(substitutions, substitutions.source);
+          }
         },
       );
+
+  Future<bool> _hasColumn(String table, String column) async {
+    final rows = await customSelect('PRAGMA table_info($table)').get();
+    return rows.any((row) => row.read<String>('name') == column);
+  }
 
   // ---------------------------------------------------------------- Lessons
 
@@ -193,6 +206,33 @@ class AppDatabase extends _$AppDatabase {
         (batch) => batch.insertAll(
           substitutions,
           items,
+          mode: InsertMode.insertOrReplace,
+        ),
+      );
+    });
+  }
+
+  /// Перезаписывает строки одного документа за дату, не трогая документы
+  /// других корпусов за тот же день.
+  ///
+  /// Строки без источника — загруженные старой версией — удаляются тоже:
+  /// неизвестно, из какого они документа, а свежая загрузка их заменит.
+  Future<void> replaceSubstitutionsFromSource(
+    DateTime date,
+    String source,
+    List<SubstitutionsCompanion> items,
+  ) async {
+    final day = DateTime(date.year, date.month, date.day);
+    await transaction(() async {
+      await (delete(substitutions)
+            ..where((t) =>
+                t.date.equals(day) &
+                (t.source.equals(source) | t.source.equals(''))))
+          .go();
+      await batch(
+        (batch) => batch.insertAll(
+          substitutions,
+          [for (final item in items) item.copyWith(source: Value(source))],
           mode: InsertMode.insertOrReplace,
         ),
       );
@@ -451,8 +491,12 @@ class AppDatabase extends _$AppDatabase {
             ));
       }
 
-      final substitutionRows =
-          _decodeList(data['substitutions'], Substitution.fromJson);
+      // В копиях до версии 1.8 у замен нет источника, а колонка
+      // обязательная — без подстановки fromJson упал бы на первой строке.
+      final substitutionRows = _decodeList(
+        data['substitutions'],
+        (row) => Substitution.fromJson({'source': '', ...row}),
+      );
       if (substitutionRows.isNotEmpty) {
         await batch((b) => b.insertAll(
               substitutions,

@@ -546,6 +546,13 @@ class $SubstitutionsTable extends Substitutions
   late final GeneratedColumn<String> note = GeneratedColumn<String>(
       'note', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+      'source', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -557,7 +564,8 @@ class $SubstitutionsTable extends Substitutions
         teacher,
         room,
         isCancelled,
-        note
+        note,
+        source
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -618,6 +626,10 @@ class $SubstitutionsTable extends Substitutions
       context.handle(
           _noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
     }
+    if (data.containsKey('source')) {
+      context.handle(_sourceMeta,
+          source.isAcceptableOrUnknown(data['source']!, _sourceMeta));
+    }
     return context;
   }
 
@@ -651,6 +663,8 @@ class $SubstitutionsTable extends Substitutions
           .read(DriftSqlType.bool, data['${effectivePrefix}is_cancelled'])!,
       note: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}note']),
+      source: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source'])!,
     );
   }
 
@@ -677,6 +691,15 @@ class Substitution extends DataClass implements Insertable<Substitution> {
 
   /// Произвольная приписка из документа («самостоятельно», «дист.» и т.п.).
   final String? note;
+
+  /// Из какого документа строка: «корпус:1», «сайт», «ссылка», «файл».
+  ///
+  /// Замены выкладывают отдельным документом на каждый корпус, и на одну
+  /// дату их бывает несколько. Загрузка документа заменяет только его
+  /// строки — иначе документ второго корпуса стирал бы первый, и пропадали
+  /// чужие замены, совмещённые пары, а то и свои собственные.
+  /// Пусто — строка загружена до появления этой колонки.
+  final String source;
   const Substitution(
       {required this.id,
       required this.date,
@@ -687,7 +710,8 @@ class Substitution extends DataClass implements Insertable<Substitution> {
       required this.teacher,
       required this.room,
       required this.isCancelled,
-      this.note});
+      this.note,
+      required this.source});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -705,6 +729,7 @@ class Substitution extends DataClass implements Insertable<Substitution> {
     if (!nullToAbsent || note != null) {
       map['note'] = Variable<String>(note);
     }
+    map['source'] = Variable<String>(source);
     return map;
   }
 
@@ -722,6 +747,7 @@ class Substitution extends DataClass implements Insertable<Substitution> {
       room: Value(room),
       isCancelled: Value(isCancelled),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      source: Value(source),
     );
   }
 
@@ -739,6 +765,7 @@ class Substitution extends DataClass implements Insertable<Substitution> {
       room: serializer.fromJson<String>(json['room']),
       isCancelled: serializer.fromJson<bool>(json['isCancelled']),
       note: serializer.fromJson<String?>(json['note']),
+      source: serializer.fromJson<String>(json['source']),
     );
   }
   @override
@@ -755,6 +782,7 @@ class Substitution extends DataClass implements Insertable<Substitution> {
       'room': serializer.toJson<String>(room),
       'isCancelled': serializer.toJson<bool>(isCancelled),
       'note': serializer.toJson<String?>(note),
+      'source': serializer.toJson<String>(source),
     };
   }
 
@@ -768,7 +796,8 @@ class Substitution extends DataClass implements Insertable<Substitution> {
           String? teacher,
           String? room,
           bool? isCancelled,
-          Value<String?> note = const Value.absent()}) =>
+          Value<String?> note = const Value.absent(),
+          String? source}) =>
       Substitution(
         id: id ?? this.id,
         date: date ?? this.date,
@@ -780,6 +809,7 @@ class Substitution extends DataClass implements Insertable<Substitution> {
         room: room ?? this.room,
         isCancelled: isCancelled ?? this.isCancelled,
         note: note.present ? note.value : this.note,
+        source: source ?? this.source,
       );
   Substitution copyWithCompanion(SubstitutionsCompanion data) {
     return Substitution(
@@ -795,6 +825,7 @@ class Substitution extends DataClass implements Insertable<Substitution> {
       isCancelled:
           data.isCancelled.present ? data.isCancelled.value : this.isCancelled,
       note: data.note.present ? data.note.value : this.note,
+      source: data.source.present ? data.source.value : this.source,
     );
   }
 
@@ -810,14 +841,15 @@ class Substitution extends DataClass implements Insertable<Substitution> {
           ..write('teacher: $teacher, ')
           ..write('room: $room, ')
           ..write('isCancelled: $isCancelled, ')
-          ..write('note: $note')
+          ..write('note: $note, ')
+          ..write('source: $source')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, date, groupName, pairNumber, subgroup,
-      subject, teacher, room, isCancelled, note);
+      subject, teacher, room, isCancelled, note, source);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -831,7 +863,8 @@ class Substitution extends DataClass implements Insertable<Substitution> {
           other.teacher == this.teacher &&
           other.room == this.room &&
           other.isCancelled == this.isCancelled &&
-          other.note == this.note);
+          other.note == this.note &&
+          other.source == this.source);
 }
 
 class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
@@ -845,6 +878,7 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
   final Value<String> room;
   final Value<bool> isCancelled;
   final Value<String?> note;
+  final Value<String> source;
   const SubstitutionsCompanion({
     this.id = const Value.absent(),
     this.date = const Value.absent(),
@@ -856,6 +890,7 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
     this.room = const Value.absent(),
     this.isCancelled = const Value.absent(),
     this.note = const Value.absent(),
+    this.source = const Value.absent(),
   });
   SubstitutionsCompanion.insert({
     this.id = const Value.absent(),
@@ -868,6 +903,7 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
     this.room = const Value.absent(),
     this.isCancelled = const Value.absent(),
     this.note = const Value.absent(),
+    this.source = const Value.absent(),
   })  : date = Value(date),
         groupName = Value(groupName),
         pairNumber = Value(pairNumber);
@@ -882,6 +918,7 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
     Expression<String>? room,
     Expression<bool>? isCancelled,
     Expression<String>? note,
+    Expression<String>? source,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -894,6 +931,7 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
       if (room != null) 'room': room,
       if (isCancelled != null) 'is_cancelled': isCancelled,
       if (note != null) 'note': note,
+      if (source != null) 'source': source,
     });
   }
 
@@ -907,7 +945,8 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
       Value<String>? teacher,
       Value<String>? room,
       Value<bool>? isCancelled,
-      Value<String?>? note}) {
+      Value<String?>? note,
+      Value<String>? source}) {
     return SubstitutionsCompanion(
       id: id ?? this.id,
       date: date ?? this.date,
@@ -919,6 +958,7 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
       room: room ?? this.room,
       isCancelled: isCancelled ?? this.isCancelled,
       note: note ?? this.note,
+      source: source ?? this.source,
     );
   }
 
@@ -955,6 +995,9 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
     if (note.present) {
       map['note'] = Variable<String>(note.value);
     }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
     return map;
   }
 
@@ -970,7 +1013,8 @@ class SubstitutionsCompanion extends UpdateCompanion<Substitution> {
           ..write('teacher: $teacher, ')
           ..write('room: $room, ')
           ..write('isCancelled: $isCancelled, ')
-          ..write('note: $note')
+          ..write('note: $note, ')
+          ..write('source: $source')
           ..write(')'))
         .toString();
   }
@@ -2667,6 +2711,7 @@ typedef $$SubstitutionsTableCreateCompanionBuilder = SubstitutionsCompanion
   Value<String> room,
   Value<bool> isCancelled,
   Value<String?> note,
+  Value<String> source,
 });
 typedef $$SubstitutionsTableUpdateCompanionBuilder = SubstitutionsCompanion
     Function({
@@ -2680,6 +2725,7 @@ typedef $$SubstitutionsTableUpdateCompanionBuilder = SubstitutionsCompanion
   Value<String> room,
   Value<bool> isCancelled,
   Value<String?> note,
+  Value<String> source,
 });
 
 class $$SubstitutionsTableFilterComposer
@@ -2720,6 +2766,9 @@ class $$SubstitutionsTableFilterComposer
 
   ColumnFilters<String> get note => $composableBuilder(
       column: $table.note, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get source => $composableBuilder(
+      column: $table.source, builder: (column) => ColumnFilters(column));
 }
 
 class $$SubstitutionsTableOrderingComposer
@@ -2760,6 +2809,9 @@ class $$SubstitutionsTableOrderingComposer
 
   ColumnOrderings<String> get note => $composableBuilder(
       column: $table.note, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get source => $composableBuilder(
+      column: $table.source, builder: (column) => ColumnOrderings(column));
 }
 
 class $$SubstitutionsTableAnnotationComposer
@@ -2800,6 +2852,9 @@ class $$SubstitutionsTableAnnotationComposer
 
   GeneratedColumn<String> get note =>
       $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
 }
 
 class $$SubstitutionsTableTableManager extends RootTableManager<
@@ -2838,6 +2893,7 @@ class $$SubstitutionsTableTableManager extends RootTableManager<
             Value<String> room = const Value.absent(),
             Value<bool> isCancelled = const Value.absent(),
             Value<String?> note = const Value.absent(),
+            Value<String> source = const Value.absent(),
           }) =>
               SubstitutionsCompanion(
             id: id,
@@ -2850,6 +2906,7 @@ class $$SubstitutionsTableTableManager extends RootTableManager<
             room: room,
             isCancelled: isCancelled,
             note: note,
+            source: source,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -2862,6 +2919,7 @@ class $$SubstitutionsTableTableManager extends RootTableManager<
             Value<String> room = const Value.absent(),
             Value<bool> isCancelled = const Value.absent(),
             Value<String?> note = const Value.absent(),
+            Value<String> source = const Value.absent(),
           }) =>
               SubstitutionsCompanion.insert(
             id: id,
@@ -2874,6 +2932,7 @@ class $$SubstitutionsTableTableManager extends RootTableManager<
             room: room,
             isCancelled: isCancelled,
             note: note,
+            source: source,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
