@@ -115,8 +115,6 @@ class AttendanceCubit extends Cubit<AttendanceState> {
   }
 
   Future<void> _resubscribe({required bool groupChanged}) async {
-    // Отписываемся до подписки: иначе старый поток успевает отдать
-    // последнее событие уже после смены дня и перетирает отметки чужими.
     await _daySubscription?.cancel();
     _daySubscription = null;
 
@@ -127,24 +125,37 @@ class AttendanceCubit extends Cubit<AttendanceState> {
       return;
     }
 
-    _daySubscription = repository
-        .watchDay(groupName: group, date: date)
-        .listen((marks) => emit(state.copyWith(dayMarks: marks, isLoading: false)));
+    // При быстром листании два вызова успевают дойти досюда, пока первый
+    // ждал отписки. Поэтому прежнюю подписку снимаем синхронно прямо перед
+    // заменой — иначе одна оставалась бы висеть до закрытия, — а значения
+    // принимаем только для дня и группы, которые сейчас на экране.
+    bool current() =>
+        !isClosed && state.date == date && state.group == group;
+
+    final day = repository.watchDay(groupName: group, date: date).listen(
+      (marks) {
+        if (current()) emit(state.copyWith(dayMarks: marks, isLoading: false));
+      },
+    );
+    _daySubscription?.cancel();
+    _daySubscription = day;
 
     if (!groupChanged && _allSubscription != null) return;
 
-    await _allSubscription?.cancel();
-    await _profilesSubscription?.cancel();
-
-    _allSubscription = repository.watchAll(group).listen((rows) {
+    final all = repository.watchAll(group).listen((rows) {
+      if (state.group != group || isClosed) return;
       _rows = rows;
       emit(state.copyWith(stats: _buildStats()));
     });
-
-    _profilesSubscription = repository.watchProfiles(group).listen((profiles) {
-      _profiles = profiles;
-      emit(state.copyWith(profiles: profiles, stats: _buildStats()));
+    final profiles = repository.watchProfiles(group).listen((items) {
+      if (state.group != group || isClosed) return;
+      _profiles = items;
+      emit(state.copyWith(profiles: items, stats: _buildStats()));
     });
+    _allSubscription?.cancel();
+    _profilesSubscription?.cancel();
+    _allSubscription = all;
+    _profilesSubscription = profiles;
   }
 
   // Отметки и профили приходят двумя независимыми потоками, а статистика
