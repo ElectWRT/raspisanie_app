@@ -32,6 +32,7 @@ class RaspisanieApp extends StatefulWidget {
 class _RaspisanieAppState extends State<RaspisanieApp>
     with WidgetsBindingObserver {
   ScheduleCubit? _scheduleCubit;
+  AttendanceCubit? _attendanceCubit;
   final _navigatorKey = GlobalKey<NavigatorState>();
   StreamSubscription<String>? _tapSubscription;
 
@@ -106,6 +107,8 @@ class _RaspisanieAppState extends State<RaspisanieApp>
     // в UI-изоляте об этом не узнают. Поэтому перечитываем при возврате.
     if (state == AppLifecycleState.resumed) {
       _scheduleCubit?.reload();
+      // Кнопка «Был на всех» в шторке пишет отметки из другого изолята.
+      _attendanceCubit?.reload();
     }
   }
 
@@ -144,10 +147,14 @@ class _RaspisanieAppState extends State<RaspisanieApp>
           },
         ),
         BlocProvider(
-          create: (_) => AttendanceCubit(
-            repository: getIt<AttendanceRepository>(),
-            settings: settings,
-          ),
+          create: (_) {
+            final cubit = AttendanceCubit(
+              repository: getIt<AttendanceRepository>(),
+              settings: settings,
+            );
+            _attendanceCubit = cubit;
+            return cubit;
+          },
         ),
       ],
       // Настройки — ChangeNotifier, поэтому смена темы перестраивает

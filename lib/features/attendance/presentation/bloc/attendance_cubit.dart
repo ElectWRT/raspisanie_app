@@ -114,6 +114,13 @@ class AttendanceCubit extends Cubit<AttendanceState> {
     await _resubscribe(groupChanged: !sameGroup);
   }
 
+  /// Перечитывает отметки заново.
+  ///
+  /// Кнопка «Был на всех» в шторке пишет в базу из другого изолята, и
+  /// потоки drift в открытом приложении об этом не узнают. Вызывается,
+  /// когда приложение возвращается на экран.
+  Future<void> reload() => _resubscribe(groupChanged: true);
+
   Future<void> _resubscribe({required bool groupChanged}) async {
     await _daySubscription?.cancel();
     _daySubscription = null;

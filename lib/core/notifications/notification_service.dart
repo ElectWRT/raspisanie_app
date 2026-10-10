@@ -6,11 +6,27 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'notification_actions.dart';
+
+/// Кнопка прямо в уведомлении — действие без открытия приложения.
+class QuickAction {
+  const QuickAction({required this.id, required this.title});
+
+  final String id;
+  final String title;
+}
+
+/// Идентификатор кнопки «Был на всех» в напоминании об отметках.
+const markAllPresentActionId = 'attendance-present';
+
 /// Общий вид запланированного уведомления.
 abstract class PendingReminder {
   DateTime get when;
   String get title;
   String get body;
+
+  /// Кнопки в шторке. Пусто — уведомление только открывает приложение.
+  List<QuickAction> get actions => const [];
 
   /// Куда вести при нажатии. Формат `тип:данные`, разбирается
   /// в NotificationRouter — так тап открывает нужный день или задание,
@@ -36,6 +52,14 @@ class NotificationPayload {
   /// Ведёт на день, в котором остались неотмеченные пары.
   static String forAttendance(DateTime date) =>
       '$attendanceType:${_dateOnly(date)}';
+
+  /// Дата из payload вида `тип:ГГГГ-ММ-ДД`. null — payload без даты.
+  static DateTime? dateOf(String? payload) {
+    if (payload == null) return null;
+    final parts = payload.split(':');
+    if (parts.length < 2) return null;
+    return DateTime.tryParse(parts.sublist(1).join(':'));
+  }
 
   static String forSubstitutions(DateTime date) =>
       '$substitutionsType:${_dateOnly(date)}';
@@ -80,6 +104,9 @@ class LessonReminder implements PendingReminder {
     this.teacher = '',
     this.isSubstitution = false,
   });
+
+  @override
+  List<QuickAction> get actions => const [];
 
   @override
   String get payload => NotificationPayload.forLesson(date);
@@ -138,6 +165,9 @@ class HomeworkReminder implements PendingReminder {
   });
 
   @override
+  List<QuickAction> get actions => const [];
+
+  @override
   String get payload => NotificationPayload.forHomework(homeworkId);
 
   @override
@@ -181,6 +211,13 @@ class AttendanceReminder implements PendingReminder {
 
   @override
   String get payload => NotificationPayload.forAttendance(date);
+
+  /// Обычный день — «был на всех», поэтому закрыть его можно одной кнопкой
+  /// прямо из шторки, не открывая приложение. Исключение правят внутри.
+  @override
+  List<QuickAction> get actions => const [
+        QuickAction(id: markAllPresentActionId, title: 'Был на всех'),
+      ];
 
   @override
   String get title => 'Отметьте пропуски';
@@ -258,6 +295,11 @@ class NotificationService {
               final payload = response.payload;
               if (payload != null) _tapController.add(payload);
             },
+            // Кнопки в шторке не открывают приложение, поэтому их нажатия
+            // приходят сюда — в отдельный изолят, даже когда приложение
+            // не запущено.
+            onDidReceiveBackgroundNotificationResponse:
+                handleBackgroundNotificationAction,
           )
           .timeout(const Duration(seconds: 5));
     } catch (_) {
@@ -334,6 +376,17 @@ class NotificationService {
               reminder.body,
               contentTitle: reminder.title,
             ),
+            actions: [
+              for (final action in reminder.actions)
+                AndroidNotificationAction(
+                  action.id,
+                  action.title,
+                  // Приложение не открываем: нажатие уходит в фоновый
+                  // изолят, а уведомление само пропадает из шторки.
+                  showsUserInterface: false,
+                  cancelNotification: true,
+                ),
+            ],
           ),
         ),
         androidScheduleMode: exact
