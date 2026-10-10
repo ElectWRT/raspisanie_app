@@ -76,7 +76,7 @@ class ReminderScheduler {
 
     for (var offset = 0; offset < _horizonDays; offset++) {
       final date = today.add(Duration(days: offset));
-      final bells = bellScheduleForWeekday(schedules, date.weekday);
+      final bells = bellScheduleForDate(schedules, date);
       if (bells == null) continue;
 
       final day = await repository
@@ -175,7 +175,7 @@ class ReminderScheduler {
 
     for (var offset = 0; offset < _horizonDays; offset++) {
       final date = today.add(Duration(days: offset));
-      final bells = bellScheduleForWeekday(schedules, date.weekday);
+      final bells = bellScheduleForDate(schedules, date);
       if (bells == null) continue;
 
       final day = await repository

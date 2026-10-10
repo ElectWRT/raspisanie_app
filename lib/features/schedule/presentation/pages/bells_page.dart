@@ -42,6 +42,21 @@ class _BellsPageState extends State<BellsPage> {
     setState(() => _schedules = schedules);
   }
 
+  /// Новый разовый набор заводим копией того, что действует в этот день:
+  /// сокращённые пары почти всегда те же, только короче.
+  BellSchedule _oneOffDraft() {
+    final tomorrow = WeekUtils.dayKey(
+      DateTime.now().add(const Duration(days: 1)),
+    );
+    final base = bellScheduleForDate(_schedules, tomorrow);
+    return BellSchedule(
+      name: 'Сокращённые пары',
+      date: tomorrow,
+      times: base?.times ??
+          const [BellTime(pairNumber: 1, start: '08:30', end: '10:00')],
+    );
+  }
+
   Future<void> _openEditor({BellSchedule? existing, int? index}) async {
     final result = await Navigator.of(context).push<BellSchedule>(
       MaterialPageRoute(
@@ -74,10 +89,24 @@ class _BellsPageState extends State<BellsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Расписание звонков')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openEditor(),
-        icon: const Icon(Icons.add),
-        label: const Text('Набор'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'one-off-bells',
+            onPressed: () => _openEditor(existing: _oneOffDraft()),
+            icon: const Icon(Icons.event_outlined),
+            label: const Text('На один день'),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'bells',
+            onPressed: () => _openEditor(),
+            icon: const Icon(Icons.add),
+            label: const Text('Набор'),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -178,6 +207,10 @@ class _ScheduleCard extends StatelessWidget {
   }
 
   static String _daysCaption(BellSchedule schedule) {
+    final date = schedule.date;
+    if (date != null) {
+      return 'Только ${WeekUtils.formatFullDate(date)}';
+    }
     if (schedule.isDefault) return 'По умолчанию — для всех остальных дней';
     final days = schedule.days.toList()..sort();
     return days.map(WeekUtils.dayNameShort).join(', ');
@@ -230,6 +263,7 @@ class _BellScheduleEditorPageState extends State<BellScheduleEditorPage> {
       TextEditingController(text: widget.schedule.name);
   late final Set<int> _days = {...widget.schedule.days};
   late List<BellTime> _times = [...widget.schedule.times];
+  late DateTime? _date = widget.schedule.date;
 
   @override
   void dispose() {
@@ -302,29 +336,49 @@ class _BellScheduleEditorPageState extends State<BellScheduleEditorPage> {
             decoration: const InputDecoration(labelText: 'Название'),
           ),
           const SizedBox(height: 20),
-          Text('Дни недели', style: theme.textTheme.labelLarge),
-          const SizedBox(height: 4),
-          Text(
-            'Если не выбрать ни одного — набор станет основным и будет '
-            'применяться ко всем дням, для которых нет своего набора.',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (var day = 1; day <= 7; day++)
-                FilterChip(
-                  label: Text(WeekUtils.dayNameShort(day)),
-                  selected: _days.contains(day),
-                  onSelected: (selected) => setState(() {
-                    selected ? _days.add(day) : _days.remove(day);
-                  }),
-                ),
-            ],
-          ),
-          const SizedBox(height: 24),
+          if (_date != null) ...[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_outlined),
+              title: const Text('Только на дату'),
+              subtitle: Text(WeekUtils.formatFullDate(_date!)),
+              trailing: TextButton(
+                onPressed: _pickDate,
+                child: const Text('Изменить'),
+              ),
+            ),
+            Text(
+              'Набор действует только в этот день и сильнее наборов по дням '
+              'недели. По нему же сдвинутся напоминания о парах.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
+          ] else ...[
+            Text('Дни недели', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 4),
+            Text(
+              'Если не выбрать ни одного — набор станет основным и будет '
+              'применяться ко всем дням, для которых нет своего набора.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (var day = 1; day <= 7; day++)
+                  FilterChip(
+                    label: Text(WeekUtils.dayNameShort(day)),
+                    selected: _days.contains(day),
+                    onSelected: (selected) => setState(() {
+                      selected ? _days.add(day) : _days.remove(day);
+                    }),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
           Row(
             children: [
               Text('Пары', style: theme.textTheme.labelLarge),
@@ -382,6 +436,18 @@ class _BellScheduleEditorPageState extends State<BellScheduleEditorPage> {
     );
   }
 
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+      helpText: 'На какой день',
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
   void _save() {
     final name = _nameController.text.trim();
     final sorted = [..._times]
@@ -390,8 +456,11 @@ class _BellScheduleEditorPageState extends State<BellScheduleEditorPage> {
     Navigator.of(context).pop(
       BellSchedule(
         name: name.isEmpty ? 'Звонки' : name,
-        days: _days,
+        // У разового набора дни недели не участвуют: иначе он заодно
+        // стал бы основным для всех дней, где своего набора нет.
+        days: _date == null ? _days : const {},
         times: sorted,
+        date: _date,
       ),
     );
   }

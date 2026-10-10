@@ -68,7 +68,7 @@ class ScheduleState extends Equatable {
 
   /// Набор звонков, действующий в выбранный день.
   BellSchedule? get activeBells =>
-      bellScheduleForWeekday(bellSchedules, date.weekday);
+      bellScheduleForDate(bellSchedules, date);
 
   BellTime? bellFor(int pairNumber) => activeBells?.timeFor(pairNumber);
 
