@@ -3,9 +3,13 @@ import 'package:drift/drift.dart';
 import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
+import '../../features/schedule/data/datasources/markdown_schedule_parser.dart';
+import '../../features/schedule/data/repositories/schedule_repository_impl.dart';
+import '../../features/schedule/domain/entities/bell_schedule.dart';
 import '../../features/substitutions/data/datasources/docx_parser.dart';
 import '../../features/substitutions/data/datasources/substitutions_remote_data_source.dart';
 import '../../features/substitutions/data/repositories/substitutions_repository_impl.dart';
+import '../../features/substitutions/domain/day_start_change.dart';
 import '../database/database.dart';
 import '../notifications/notification_service.dart';
 import '../settings/app_settings.dart';
@@ -103,6 +107,13 @@ Future<bool> runBackgroundRefresh() async {
               date: date,
               count: count,
               group: settings.selectedGroup,
+              // Ради этой строки уведомление и открывают: во сколько
+              // теперь приходить.
+              startChange: await _startChangeFor(
+                database,
+                date: date,
+                settings: settings,
+              ),
             ),
             payload: NotificationPayload.forSubstitutions(date),
             slot: daysBetween(today, date),
@@ -117,6 +128,37 @@ Future<bool> runBackgroundRefresh() async {
   } finally {
     await database?.close();
   }
+}
+
+/// Сдвинулось ли начало дня у своей группы. null — сказать нечего:
+/// группа не выбрана, расписания нет или начало не поменялось.
+Future<DayStartChange?> _startChangeFor(
+  AppDatabase database, {
+  required DateTime date,
+  required AppSettings settings,
+}) async {
+  final group = settings.selectedGroup;
+  if (group == null) return null;
+
+  final schedule = ScheduleRepositoryImpl(
+    database: database,
+    parser: const MarkdownScheduleParser(),
+  );
+  final day = await schedule
+      .watchDay(
+        groupName: group,
+        date: date,
+        subgroup: settings.subgroup,
+        invertWeekParity: settings.invertWeekParity,
+      )
+      .first;
+  if (day.slots.isEmpty) return null;
+
+  final change = describeDayStart(
+    day.slots,
+    bells: bellScheduleForDate(await schedule.getBellSchedules(), date),
+  );
+  return change.isEmpty ? null : change;
 }
 
 Future<int> _countFor(
@@ -152,14 +194,21 @@ String substitutionAlertTitle({
     };
 
 /// Текст уведомления о новых заменах.
+///
+/// Если день начинается не с той пары, что по расписанию, это идёт первой
+/// строкой: «во сколько завтра приходить» — главное, ради чего замены
+/// вообще читают.
 String substitutionAlertBody({
   required DateTime date,
   required int count,
   String? group,
+  DayStartChange? startChange,
 }) {
   final where = group == null ? '' : ' у $group';
-  return 'На ${WeekUtils.formatFullDate(date)}$where — '
-      '$count ${_changesWord(count)}. Откройте, чтобы посмотреть.';
+  final tail = 'На ${WeekUtils.formatFullDate(date)}$where — '
+      '$count ${_changesWord(count)}.';
+  final start = startChange?.message;
+  return start == null ? '$tail Откройте, чтобы посмотреть.' : '$start\n$tail';
 }
 
 String _changesWord(int count) {
