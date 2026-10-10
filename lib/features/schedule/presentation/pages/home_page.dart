@@ -26,6 +26,7 @@ import '../../domain/entities/schedule_slot.dart';
 import '../bloc/schedule_cubit.dart';
 import '../widgets/day_switcher.dart';
 import '../widgets/lesson_card.dart';
+import '../share_day.dart';
 import 'import_schedule_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -62,10 +63,26 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
                 _HomeworkButton(group: state.group),
-                IconButton(
-                  tooltip: 'Настройки',
-                  icon: const Icon(Icons.settings_outlined),
-                  onPressed: () => _openSettings(context),
+                PopupMenuButton<void>(
+                  tooltip: 'Ещё',
+                  itemBuilder: (_) => [
+                    PopupMenuItem<void>(
+                      onTap: () => _shareDay(context, state),
+                      child: const ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.image_outlined),
+                        title: Text('Поделиться днём'),
+                      ),
+                    ),
+                    PopupMenuItem<void>(
+                      onTap: () => _openSettings(context),
+                      child: const ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.settings_outlined),
+                        title: Text('Настройки'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -78,33 +95,36 @@ class HomePage extends StatelessWidget {
                 final look = resolveSeasonLook(now, settings.seasonMode);
                 final dark = Theme.of(context).brightness == Brightness.dark;
 
-                return SeasonalBackdrop(
-                  look: look,
-                  motion: settings.seasonalMotion,
-                  plainBackground: dark && settings.amoledDark,
-                  initialCount: settings.seasonalParticleCount,
-                  onCountLearned: settings.setSeasonalParticleCount,
-                  child: Column(
-                    children: [
-                      if (look?.festive ?? false)
-                        FestiveGarland(
-                          greeting: festiveGreeting(now),
-                          motion: settings.seasonalMotion,
+                return RepaintBoundary(
+                  key: dayBoundaryKey,
+                  child: SeasonalBackdrop(
+                    look: look,
+                    motion: settings.seasonalMotion,
+                    plainBackground: dark && settings.amoledDark,
+                    initialCount: settings.seasonalParticleCount,
+                    onCountLearned: settings.setSeasonalParticleCount,
+                    child: Column(
+                      children: [
+                        if (look?.festive ?? false)
+                          FestiveGarland(
+                            greeting: festiveGreeting(now),
+                            motion: settings.seasonalMotion,
+                          ),
+                        DaySwitcher(
+                          date: state.date,
+                          onSelect: context.read<ScheduleCubit>().selectDate,
+                          showWeekends: settings.showWeekends,
+                          substitutionDays: state.substitutionWeekdays,
                         ),
-                      DaySwitcher(
-                        date: state.date,
-                        onSelect: context.read<ScheduleCubit>().selectDate,
-                        showWeekends: settings.showWeekends,
-                        substitutionDays: state.substitutionWeekdays,
-                      ),
-                      const _RefreshBanner(),
-                      const LastUpdatedLine(
-                        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      ),
-                      Expanded(
-                        child: _DayBody(state: state, settings: settings),
-                      ),
-                    ],
+                        const _RefreshBanner(),
+                        const LastUpdatedLine(
+                          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        ),
+                        Expanded(
+                          child: _DayBody(state: state, settings: settings),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -149,8 +169,37 @@ class HomePage extends StatelessWidget {
     }
   }
 
-  static Future<void> _openSettings(BuildContext context) => openSettings(context);
+  static Future<void> _openSettings(BuildContext context) =>
+      openSettings(context);
+
+  /// Отправляет экран дня картинкой. Снимок берётся с того, что видно:
+  /// если пар много и список прокручен, в картинку попадёт видимая часть.
+  static Future<void> _shareDay(
+    BuildContext context,
+    ScheduleState state,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final caption = [
+      if (state.group != null) state.group,
+      WeekUtils.formatFullDate(state.date),
+    ].join(' · ');
+
+    try {
+      await shareDayAsImage(boundaryKey: dayBoundaryKey, caption: caption);
+    } on ShareDayException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Не удалось поделиться днём')),
+      );
+    }
+  }
 }
+
+/// Область, которая уходит в картинку при «Поделиться днём».
+///
+/// Один ключ на всё приложение: экран дня в нём ровно один.
+final dayBoundaryKey = GlobalKey();
 
 /// Открывает настройки и перечитывает расписание после возврата.
 ///
@@ -233,9 +282,8 @@ class _DayBodyState extends State<_DayBody> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final content = day.isEmpty
-        ? _EmptyDayView(date: day.date)
-        : _buildList(day, settings);
+    final content =
+        day.isEmpty ? _EmptyDayView(date: day.date) : _buildList(day, settings);
 
     // Горизонтальный свайп листает дни — вертикальная прокрутка не мешает.
     return GestureDetector(
@@ -297,8 +345,7 @@ class _DayBodyState extends State<_DayBody> {
           homeworkCount: counts[slot.subject.toLowerCase()] ?? 0,
           entranceIndex: index - 1,
           attendance: attendance.markFor(slot)?.status,
-          onAttendanceTap: () =>
-              context.read<AttendanceCubit>().cycle(slot),
+          onAttendanceTap: () => context.read<AttendanceCubit>().cycle(slot),
           requiredItems: attendance.itemsFor(slot.subject),
           isMajorSubject: attendance.isMajor(slot.subject),
         );
@@ -345,7 +392,8 @@ class _DaySummary extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10, left: 2),
       child: Row(
         children: [
-          Icon(Icons.schedule_outlined, size: 15, color: scheme.onSurfaceVariant),
+          Icon(Icons.schedule_outlined,
+              size: 15, color: scheme.onSurfaceVariant),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -359,8 +407,7 @@ class _DaySummary extends StatelessWidget {
               padding: const EdgeInsets.only(right: 6),
               child: Icon(Icons.swap_horiz, size: 15, color: scheme.tertiary),
             ),
-          if (advice != null && !advice.isEmpty)
-            SkipAdviceChip(advice: advice),
+          if (advice != null && !advice.isEmpty) SkipAdviceChip(advice: advice),
         ],
       ),
     );
@@ -724,8 +771,8 @@ class _StartupErrorView extends StatelessWidget {
             ),
             child: SelectableText(
               message,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(fontFamily: 'monospace'),
+              style:
+                  theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
             ),
           ),
           const SizedBox(height: 20),
