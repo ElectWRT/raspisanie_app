@@ -16,10 +16,11 @@ extension SeasonModeLabel on SeasonMode {
       };
 }
 
-/// Сезон по календарю: осень — сентябрь–ноябрь, зима — декабрь–февраль,
-/// весна — март–май, лето — июнь–август.
+/// Для зимнего оформления снег начинается с 31 октября: в Хабаровске к
+/// этому времени уже бывает зима. Остальные сезоны идут по календарю.
 Season seasonFor(DateTime date) => switch (date.month) {
-      12 || 1 || 2 => Season.winter,
+      11 || 12 || 1 || 2 => Season.winter,
+      10 when date.day == 31 => Season.winter,
       3 || 4 || 5 => Season.spring,
       6 || 7 || 8 => Season.summer,
       _ => Season.autumn,

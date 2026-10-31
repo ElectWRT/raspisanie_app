@@ -11,7 +11,9 @@ void main() {
   group('сезон по дате', () {
     test('месяцы раскладываются по сезонам', () {
       expect(seasonFor(DateTime(2026, 9, 1)), Season.autumn);
-      expect(seasonFor(DateTime(2026, 11, 30)), Season.autumn);
+      expect(seasonFor(DateTime(2026, 10, 30)), Season.autumn);
+      expect(seasonFor(DateTime(2026, 10, 31)), Season.winter);
+      expect(seasonFor(DateTime(2026, 11, 30)), Season.winter);
       expect(seasonFor(DateTime(2026, 12, 1)), Season.winter);
       expect(seasonFor(DateTime(2027, 2, 28)), Season.winter);
       expect(seasonFor(DateTime(2027, 3, 1)), Season.spring);
