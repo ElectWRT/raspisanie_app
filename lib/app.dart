@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart' show TableUpdate;
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'core/database/database.dart';
 import 'core/notifications/notification_router.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/notifications/reminder_scheduler.dart';
@@ -106,6 +108,11 @@ class _RaspisanieAppState extends State<RaspisanieApp>
     // Фоновая задача пишет в базу из другого изолята, и потоки drift
     // в UI-изоляте об этом не узнают. Поэтому перечитываем при возврате.
     if (state == AppLifecycleState.resumed) {
+      final database = getIt<AppDatabase>();
+      database.notifyUpdates({
+        TableUpdate.onTable(database.substitutions),
+        TableUpdate.onTable(database.appMeta),
+      });
       _scheduleCubit?.reload();
       // Кнопка «Был на всех» в шторке пишет отметки из другого изолята.
       _attendanceCubit?.reload();

@@ -23,6 +23,7 @@ class ScheduleState extends Equatable {
   /// Базовое расписание ещё не импортировано — показываем экран-подсказку.
   final bool needsImport;
   final bool isLoading;
+  final bool showWeek;
 
   /// Сбой при чтении базы. Показываем текст, а не вечную крутилку.
   final String? error;
@@ -36,6 +37,7 @@ class ScheduleState extends Equatable {
     this.substitutionWeekdays = const {},
     this.needsImport = false,
     this.isLoading = true,
+    this.showWeek = false,
     this.error,
   });
 
@@ -50,6 +52,7 @@ class ScheduleState extends Equatable {
     Set<int>? substitutionWeekdays,
     bool? needsImport,
     bool? isLoading,
+    bool? showWeek,
     String? error,
     bool clearError = false,
   }) {
@@ -62,13 +65,13 @@ class ScheduleState extends Equatable {
       substitutionWeekdays: substitutionWeekdays ?? this.substitutionWeekdays,
       needsImport: needsImport ?? this.needsImport,
       isLoading: isLoading ?? this.isLoading,
+      showWeek: showWeek ?? this.showWeek,
       error: clearError ? null : (error ?? this.error),
     );
   }
 
   /// Набор звонков, действующий в выбранный день.
-  BellSchedule? get activeBells =>
-      bellScheduleForDate(bellSchedules, date);
+  BellSchedule? get activeBells => bellScheduleForDate(bellSchedules, date);
 
   BellTime? bellFor(int pairNumber) => activeBells?.timeFor(pairNumber);
 
@@ -82,6 +85,7 @@ class ScheduleState extends Equatable {
         substitutionWeekdays,
         needsImport,
         isLoading,
+        showWeek,
         error,
       ];
 }
@@ -144,13 +148,21 @@ class ScheduleCubit extends Cubit<ScheduleState> {
     await init();
   }
 
-  void selectDate(DateTime date) {
-    emit(state.copyWith(date: WeekUtils.dayKey(date), clearDay: true));
+  void setShowWeek(bool value) => emit(state.copyWith(showWeek: value));
+
+  void selectDate(DateTime date, {bool keepWeekView = false}) {
+    final selected = WeekUtils.dayKey(date);
+    final dateChanged = selected != state.date;
+    emit(state.copyWith(
+      date: selected,
+      clearDay: dateChanged,
+      showWeek: keepWeekView && state.showWeek,
+    ));
+    if (!dateChanged) return;
     _resubscribe();
   }
 
-  void shiftDay(int days) =>
-      selectDate(state.date.add(Duration(days: days)));
+  void shiftDay(int days) => selectDate(state.date.add(Duration(days: days)));
 
   void goToToday() => selectDate(DateTime.now());
 

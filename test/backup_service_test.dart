@@ -194,6 +194,26 @@ void main() {
     );
   });
 
+  test('копия без таблиц отклоняется и сохраняет текущие данные', () async {
+    await seed();
+    final bytes = _bytesOf({'backupFormatVersion': 1});
+    expect(() => service.inspect(bytes), throwsA(isA<BackupFormatException>()));
+    await expectLater(
+        service.restore(bytes), throwsA(isA<BackupFormatException>()));
+    expect(await database.getGroupNames(), ['СА-2124']);
+    expect(await database.getPendingHomeworks('СА-2124'), hasLength(1));
+  });
+
+  test('неверный тип таблицы отклоняется до восстановления', () async {
+    final tables = await database.exportAllTables();
+    final bytes = _bytesOf({
+      'backupFormatVersion': 1,
+      ...tables,
+      'attendances': 'повреждено',
+    });
+    expect(() => service.inspect(bytes), throwsA(isA<BackupFormatException>()));
+  });
+
   test('пустые списки в файле не роняют восстановление', () async {
     final data = {
       'backupFormatVersion': 1,

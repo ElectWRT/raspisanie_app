@@ -14,6 +14,7 @@ void main() {
     String room = '301',
     bool cancelled = false,
     int id = 1,
+    String? note,
   }) {
     return Substitution(
       id: id,
@@ -25,10 +26,32 @@ void main() {
       room: room,
       isCancelled: cancelled,
       source: '',
+      note: note,
     );
   }
 
   group('слепок замен', () {
+    test('изменение только примечания меняет слепок', () {
+      final before = substitutionsSignature(rows: [row()], date: date);
+      final after = substitutionsSignature(
+        rows: [row(note: 'Дистанционно')],
+        date: date,
+      );
+      expect(after, isNot(before));
+    });
+
+    test('разделитель внутри названия не смешивает поля', () {
+      final a = substitutionsSignature(
+        rows: [row(subject: 'Сети|Иванов', teacher: 'Петров')],
+        date: date,
+      );
+      final b = substitutionsSignature(
+        rows: [row(subject: 'Сети', teacher: 'Иванов|Петров')],
+        date: date,
+      );
+      expect(a, isNot(b));
+    });
+
     test('порядок строк не влияет', () {
       final a = substitutionsSignature(
         rows: [row(id: 1, pair: 1), row(id: 2, pair: 2)],
@@ -39,7 +62,8 @@ void main() {
         date: date,
       );
 
-      expect(a, b, reason: 'иначе уведомление приходило бы после каждой загрузки');
+      expect(a, b,
+          reason: 'иначе уведомление приходило бы после каждой загрузки');
     });
 
     test('изменение предмета меняет слепок', () {

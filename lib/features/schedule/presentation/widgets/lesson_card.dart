@@ -58,6 +58,7 @@ class LessonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     final accent = slot.isCancelled
         ? scheme.error
@@ -71,7 +72,8 @@ class LessonCard extends StatelessWidget {
     // (тикает таймер каждые 30 секунд), подсветка должна проступать плавно,
     // а не переключаться скачком.
     final card = AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 300),
       curve: Curves.easeOut,
       decoration: BoxDecoration(
         color: isNow
@@ -79,7 +81,7 @@ class LessonCard extends StatelessWidget {
             : slot.isSubstitution
                 ? accent.withValues(alpha: 0.06)
                 : scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 16 : 24),
         border: Border.all(
           color: isNow
               ? scheme.primary
@@ -234,14 +236,15 @@ class LessonCard extends StatelessWidget {
     // Прошедшая пара гаснет плавно, а не скачком — та же причина, что и
     // выше: тикает таймер, а не действие пользователя.
     final faded = AnimatedOpacity(
-      duration: const Duration(milliseconds: 400),
+      duration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 400),
       curve: Curves.easeOut,
       opacity: isPast ? 0.45 : 1,
       child: card,
     );
 
     final index = entranceIndex;
-    if (index == null) return faded;
+    if (index == null || reduceMotion) return faded;
 
     // Появление списка при открытии дня или свайпе между днями.
     // flutter_animate играет один раз при монтировании виджета — переключение
@@ -277,11 +280,7 @@ class _AttendanceDot extends StatelessWidget {
           scheme.primary,
           'Был на паре'
         ),
-      AttendanceStatus.absent => (
-          Icons.cancel,
-          scheme.error,
-          'Пропустил'
-        ),
+      AttendanceStatus.absent => (Icons.cancel, scheme.error, 'Пропустил'),
       AttendanceStatus.excused => (
           Icons.verified_outlined,
           scheme.tertiary,
@@ -386,7 +385,7 @@ class _PairNumber extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Text(
               '$number',
@@ -400,8 +399,10 @@ class _PairNumber extends StatelessWidget {
             SizedBox(height: compact ? 4 : 6),
             Text(
               bell!.start,
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: (compact
+                      ? theme.textTheme.labelSmall
+                      : theme.textTheme.labelLarge)
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
               bell!.end,
@@ -431,7 +432,8 @@ class _MetaRow extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     final iconSize = compact ? 14.0 : 16.0;
-    final style = compact ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium;
+    final style =
+        compact ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium;
 
     if (teacher.isEmpty && room.isEmpty) return const SizedBox.shrink();
 
@@ -453,9 +455,11 @@ class _MetaRow extends StatelessWidget {
           const SizedBox(width: 8),
           Icon(Icons.meeting_room_outlined, size: iconSize, color: muted),
           const SizedBox(width: 4),
-          Text(
-            room,
-            style: style?.copyWith(fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              room,
+              style: style?.copyWith(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ],

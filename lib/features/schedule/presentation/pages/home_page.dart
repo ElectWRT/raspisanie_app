@@ -26,6 +26,7 @@ import '../../domain/entities/schedule_slot.dart';
 import '../bloc/schedule_cubit.dart';
 import '../widgets/day_switcher.dart';
 import '../widgets/lesson_card.dart';
+import '../widgets/week_overview.dart';
 import '../share_day.dart';
 import 'import_schedule_page.dart';
 
@@ -66,14 +67,15 @@ class HomePage extends StatelessWidget {
                 PopupMenuButton<void>(
                   tooltip: 'Ещё',
                   itemBuilder: (_) => [
-                    PopupMenuItem<void>(
-                      onTap: () => _shareDay(context, state),
-                      child: const ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.image_outlined),
-                        title: Text('Поделиться днём'),
+                    if (!state.showWeek)
+                      PopupMenuItem<void>(
+                        onTap: () => _shareDay(context, state),
+                        child: const ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.image_outlined),
+                          title: Text('Поделиться днём'),
+                        ),
                       ),
-                    ),
                     PopupMenuItem<void>(
                       onTap: () => _openSettings(context),
                       child: const ListTile(
@@ -94,6 +96,8 @@ class HomePage extends StatelessWidget {
                 final now = DateTime.now();
                 final look = resolveSeasonLook(now, settings.seasonMode);
                 final dark = Theme.of(context).brightness == Brightness.dark;
+                final schedule = context.read<ScheduleCubit>();
+                final group = state.group;
 
                 return RepaintBoundary(
                   key: dayBoundaryKey,
@@ -110,10 +114,38 @@ class HomePage extends StatelessWidget {
                             greeting: festiveGreeting(now),
                             motion: settings.seasonalMotion,
                           ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<bool>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: false,
+                                  label: Text('День'),
+                                  icon: Icon(Icons.view_day_outlined),
+                                ),
+                                ButtonSegment(
+                                  value: true,
+                                  label: Text('Неделя'),
+                                  icon: Icon(Icons.view_week_outlined),
+                                ),
+                              ],
+                              showSelectedIcon: false,
+                              selected: {state.showWeek},
+                              onSelectionChanged: (value) =>
+                                  schedule.setShowWeek(value.single),
+                            ),
+                          ),
+                        ),
                         DaySwitcher(
                           date: state.date,
-                          onSelect: context.read<ScheduleCubit>().selectDate,
+                          onSelect: (date) => schedule.selectDate(
+                            date,
+                            keepWeekView: state.showWeek,
+                          ),
                           showWeekends: settings.showWeekends,
+                          weekOverview: state.showWeek,
                           substitutionDays: state.substitutionWeekdays,
                         ),
                         const _RefreshBanner(),
@@ -121,7 +153,21 @@ class HomePage extends StatelessWidget {
                           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
                         ),
                         Expanded(
-                          child: _DayBody(state: state, settings: settings),
+                          child: state.showWeek && group != null
+                              ? WeekOverview(
+                                  repository: schedule.repository,
+                                  weekStart: WeekUtils.startOfWeek(state.date),
+                                  group: group,
+                                  showWeekends: settings.showWeekends,
+                                  subgroup: settings.subgroup,
+                                  invertWeekParity: settings.invertWeekParity,
+                                  bellSchedules: state.bellSchedules,
+                                  onSelect: schedule.selectDate,
+                                  onRefresh: () => context
+                                      .read<SubstitutionsCubit>()
+                                      .refresh(targetDate: state.date),
+                                )
+                              : _DayBody(state: state, settings: settings),
                         ),
                       ],
                     ),
@@ -373,12 +419,18 @@ class _DaySummary extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    final numbers = day.slots.map((s) => s.pairNumber).toSet().toList()..sort();
-    final first = bells?.timeFor(numbers.first);
-    final last = bells?.timeFor(numbers.last);
+    final numbers = {
+      for (final slot in day.slots)
+        if (!slot.isCancelled) slot.pairNumber,
+    }.toList()
+      ..sort();
+    final first = numbers.isEmpty ? null : bells?.timeFor(numbers.first);
+    final last = numbers.isEmpty ? null : bells?.timeFor(numbers.last);
 
     final parts = <String>[
-      _plural(numbers.length),
+      numbers.isEmpty
+          ? 'Нет занятий'
+          : WeekUtils.formatPairCount(numbers.length),
       if (first != null && last != null) '${first.start} – ${last.end}',
       if (day.substitutionCount > 0) 'замен: ${day.substitutionCount}',
     ];
@@ -411,16 +463,6 @@ class _DaySummary extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static String _plural(int count) {
-    final mod10 = count % 10;
-    final mod100 = count % 100;
-    if (mod10 == 1 && mod100 != 11) return '$count пара';
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-      return '$count пары';
-    }
-    return '$count пар';
   }
 }
 

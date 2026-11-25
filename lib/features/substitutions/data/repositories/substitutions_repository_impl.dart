@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -36,19 +37,26 @@ String substitutionsSignature({
   required DateTime date,
   String? group,
 }) {
-  final mine = group == null
-      ? rows
-      : rows.where((r) => r.groupName == group).toList();
+  final mine =
+      group == null ? rows : rows.where((r) => r.groupName == group).toList();
 
   final parts = mine
-      .map((r) => '${r.groupName}|${r.pairNumber}|${r.subgroup ?? ''}|'
-          '${r.subject}|${r.teacher}|${r.room}|${r.isCancelled}')
+      .map((r) => jsonEncode([
+            r.groupName,
+            r.pairNumber,
+            r.subgroup ?? '',
+            r.subject,
+            r.teacher,
+            r.room,
+            r.isCancelled,
+            r.note ?? '',
+          ]))
       .toList()
     ..sort();
 
   final payload = '${WeekUtils.dayKey(date).toIso8601String()}::'
       '${parts.join(';')}';
-  return md5.convert(payload.codeUnits).toString();
+  return md5.convert(utf8.encode(payload)).toString();
 }
 
 /// Источник строк, загруженных по ручной ссылке из настроек.
@@ -158,7 +166,7 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
       if (links.isEmpty) {
         throw ParsingException('Ссылки на замены не найдены.');
       }
-      return _downloadAll(
+      return await _downloadAll(
         linksToRefresh(links, targetDate: targetDate, now: DateTime.now()),
         fallbackDate: targetDate,
       );
@@ -216,7 +224,7 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
     DateTime? fallbackDate,
   }) async {
     try {
-      return _store(
+      return await _store(
         bytes,
         source: source,
         sourceKey: fileSourceKey,
@@ -305,7 +313,8 @@ class SubstitutionsRepositoryImpl implements SubstitutionsRepository {
     final wanted = targetDate == null ? null : WeekUtils.dayKey(targetDate);
     final chosen = byDate.containsKey(wanted)
         ? wanted!
-        : dates.firstWhere((d) => !d.isBefore(today), orElse: () => dates.first);
+        : dates.firstWhere((d) => !d.isBefore(today),
+            orElse: () => dates.first);
 
     final same = byDate[chosen]!;
     if (same.length == 1) return same.single;

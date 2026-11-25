@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/версия-1.9.1-2F6BFF?style=flat-square" alt="Версия 1.9.1">
+  <img src="https://img.shields.io/github/v/release/ElectWRT/raspisanie_app?style=flat-square&amp;label=release&amp;color=2F6BFF" alt="Последний релиз">
   <img src="https://img.shields.io/badge/платформа-Android-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android">
   <img src="https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter">
   <img src="https://img.shields.io/badge/без_рекламы-и_регистрации-6A5ACD?style=flat-square" alt="Без рекламы и регистрации">
@@ -24,6 +24,7 @@
   <a href="https://github.com/ElectWRT/raspisanie_app/releases/latest"><strong>Скачать APK</strong></a> ·
   <a href="#установка">Установка</a> ·
   <a href="#другое-учебное-заведение">Своё учебное заведение</a> ·
+  <a href="CHANGELOG.md">История изменений</a> ·
   <a href="https://github.com/ElectWRT/raspisanie_app/issues/new">Сообщить об ошибке</a>
 </p>
 
@@ -41,8 +42,8 @@
 и настроено на него по умолчанию, но работает с любым заведением, которое
 выкладывает замены файлом `.docx` — см. [Другое учебное заведение](#другое-учебное-заведение).
 
-> **Зимнее обновление 1.9.1:** новая иконка и снег на главном экране.
-> В автоматическом режиме зимнее оформление включается с 31 октября.
+> **В версии 1.10.0** появился обзор недели с временем первой пары,
+> количеством занятий и отметками о заменах. [Все изменения](CHANGELOG.md#1100).
 
 ## Главное
 
@@ -74,6 +75,8 @@
 
 ### Расписание
 
+- Переключатель «День / Неделя»: на неделе видны время начала занятий,
+  количество пар и замены. Нажмите на дату, чтобы открыть подробности.
 - День целиком: время пар по звонкам, свайп между днями, точки на днях
   недели, где есть замены.
 - Числитель и знаменатель, подгруппы — пары чужой подгруппы можно скрыть.

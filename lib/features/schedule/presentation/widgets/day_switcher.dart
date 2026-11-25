@@ -9,6 +9,7 @@ class DaySwitcher extends StatelessWidget {
     required this.date,
     required this.onSelect,
     this.showWeekends = true,
+    this.weekOverview = false,
     this.substitutionDays = const {},
   });
 
@@ -17,6 +18,7 @@ class DaySwitcher extends StatelessWidget {
 
   /// Показывать субботу и воскресенье.
   final bool showWeekends;
+  final bool weekOverview;
 
   /// Дни недели (1..7), на которые есть замены — помечаем точкой.
   final Set<int> substitutionDays;
@@ -37,8 +39,7 @@ class DaySwitcher extends StatelessWidget {
               IconButton(
                 tooltip: 'Предыдущая неделя',
                 icon: const Icon(Icons.chevron_left),
-                onPressed: () =>
-                    onSelect(date.subtract(const Duration(days: 7))),
+                onPressed: () => onSelect(_shift(date, -7)),
               ),
               Expanded(
                 child: Center(
@@ -52,8 +53,11 @@ class DaySwitcher extends StatelessWidget {
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                     label: Text(
-                      _caption(date, today),
+                      weekOverview
+                          ? _weekCaption(weekStart, dayCount)
+                          : _caption(date, today),
                       style: theme.textTheme.labelLarge,
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
@@ -61,28 +65,40 @@ class DaySwitcher extends StatelessWidget {
               IconButton(
                 tooltip: 'Следующая неделя',
                 icon: const Icon(Icons.chevron_right),
-                onPressed: () => onSelect(date.add(const Duration(days: 7))),
+                onPressed: () => onSelect(_shift(date, 7)),
               ),
             ],
           ),
-          Row(
-            children: [
-              for (var i = 0; i < dayCount; i++)
-                Expanded(
-                  child: _DayChip(
-                    day: weekStart.add(Duration(days: i)),
-                    isSelected: WeekUtils.dayKey(date) ==
-                        weekStart.add(Duration(days: i)),
-                    isToday: today == weekStart.add(Duration(days: i)),
-                    hasSubstitutions: substitutionDays.contains(i + 1),
-                    onTap: onSelect,
+          if (!weekOverview)
+            Row(
+              children: [
+                for (var i = 0; i < dayCount; i++)
+                  Expanded(
+                    child: _DayChip(
+                      day: _shift(weekStart, i),
+                      isSelected:
+                          WeekUtils.dayKey(date) == _shift(weekStart, i),
+                      isToday: today == _shift(weekStart, i),
+                      hasSubstitutions: substitutionDays.contains(i + 1),
+                      onTap: onSelect,
+                    ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );
+  }
+
+  static DateTime _shift(DateTime date, int days) =>
+      DateTime(date.year, date.month, date.day + days);
+
+  static String _weekCaption(DateTime start, int dayCount) {
+    final end = _shift(start, dayCount - 1);
+    final endMonth = WeekUtils.monthsGenitive[end.month - 1];
+    if (start.month == end.month) return '${start.day}–${end.day} $endMonth';
+    final startMonth = WeekUtils.monthsGenitive[start.month - 1];
+    return '${start.day} $startMonth – ${end.day} $endMonth';
   }
 
   /// «Сегодня», «Завтра» или полная дата — так быстрее считывается.
@@ -118,24 +134,27 @@ class _DayChip extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    final background = isSelected ? scheme.primary : Colors.transparent;
+    final background = isSelected ? scheme.primary : scheme.surfaceContainer;
     final foreground = isSelected
         ? scheme.onPrimary
         : isToday
             ? scheme.primary
             : scheme.onSurface;
 
+    final radius = BorderRadius.circular(isSelected ? 24 : 14);
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: radius,
       onTap: () => onTap(day),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
         curve: Curves.easeOut,
         margin: const EdgeInsets.symmetric(horizontal: 2),
         padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: radius,
           border: isToday && !isSelected
               ? Border.all(color: scheme.primary.withValues(alpha: 0.5))
               : null,

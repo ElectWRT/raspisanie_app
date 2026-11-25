@@ -42,12 +42,24 @@ class WeekUtils {
   /// Название дня недели по номеру 1..7.
   static String dayName(int dayOfWeek) => dayNames[(dayOfWeek - 1) % 7];
 
-  static String dayNameShort(int dayOfWeek) => dayNamesShort[(dayOfWeek - 1) % 7];
+  static String dayNameShort(int dayOfWeek) =>
+      dayNamesShort[(dayOfWeek - 1) % 7];
 
   /// «5 сентября, пятница»
   static String formatFullDate(DateTime date) =>
       '${date.day} ${monthsGenitive[date.month - 1]}, '
       '${dayName(date.weekday).toLowerCase()}';
+
+  static String formatPairCount(int count) {
+    final mod100 = count % 100;
+    final noun = switch ((mod100, count % 10)) {
+      (>= 11 && <= 14, _) => 'пар',
+      (_, 1) => 'пара',
+      (_, >= 2 && <= 4) => 'пары',
+      _ => 'пар',
+    };
+    return '$count $noun';
+  }
 
   /// Полночь переданной даты — канонический ключ дня в базе.
   static DateTime dayKey(DateTime date) =>
@@ -110,8 +122,6 @@ class WeekUtils {
       };
 
   /// Понедельник недели, содержащей [date].
-  static DateTime startOfWeek(DateTime date) {
-    final day = dayKey(date);
-    return day.subtract(Duration(days: day.weekday - 1));
-  }
+  static DateTime startOfWeek(DateTime date) =>
+      DateTime(date.year, date.month, date.day - date.weekday + 1);
 }

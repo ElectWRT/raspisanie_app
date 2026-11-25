@@ -14,8 +14,18 @@ import 'package:raspisanie_app/features/substitutions/data/repositories/substitu
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _months = [
-  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
 ];
 
 /// Документ замен с одной строкой для группы на дату [date].
@@ -84,6 +94,22 @@ void main() {
       );
 
   group('refreshUpcoming', () {
+    test('сбой загрузчика возвращает ошибку обновления', () async {
+      // Ссылка есть, но загрузчик не может вернуть её содержимое.
+      final site = _FakeSite({}, links: [
+        SourceLink(url: 'missing.docx', title: '', date: today),
+      ]);
+      final outcome = await repositoryWith(site).refreshUpcoming();
+      expect(outcome.isLeft(), isTrue);
+    });
+
+    test('повреждённый DOCX возвращает ошибку, а не выбрасывает исключение',
+        () async {
+      final outcome = await repositoryWith(_FakeSite({}))
+          .importDocx(Uint8List.fromList([1, 2, 3]));
+      expect(outcome.isLeft(), isTrue);
+    });
+
     test('качает и сегодняшний, и завтрашний документ', () async {
       // Ровно тот случай, из-за которого не приходили уведомления: замены
       // на завтра уже выложены, а сегодняшний документ ещё висит.
@@ -121,8 +147,10 @@ void main() {
       final site = _FakeSite(
         {'k1.docx': _docxFor(tomorrow), 'k2.docx': _docxFor(tomorrow)},
         links: [
-          SourceLink(url: 'k1.docx', title: 'Корпус 1', date: tomorrow, building: 1),
-          SourceLink(url: 'k2.docx', title: 'Корпус 2', date: tomorrow, building: 2),
+          SourceLink(
+              url: 'k1.docx', title: 'Корпус 1', date: tomorrow, building: 1),
+          SourceLink(
+              url: 'k2.docx', title: 'Корпус 2', date: tomorrow, building: 2),
         ],
       );
 
@@ -142,7 +170,8 @@ void main() {
 
       await repositoryWith(site).refreshUpcoming();
 
-      final todaySignature = await database.getMeta(notifiedSignatureKey(today));
+      final todaySignature =
+          await database.getMeta(notifiedSignatureKey(today));
       final tomorrowSignature =
           await database.getMeta(notifiedSignatureKey(tomorrow));
 
@@ -177,8 +206,9 @@ void main() {
       await repository.refreshUpcoming();
       final second = await database.getMeta(notifiedSignatureKey(tomorrow));
 
-      expect(second, first, reason: 'иначе уведомление приходило бы '
-          'после каждой проверки, а не только при новых заменах');
+      expect(second, first,
+          reason: 'иначе уведомление приходило бы '
+              'после каждой проверки, а не только при новых заменах');
     });
   });
 
@@ -198,7 +228,8 @@ void main() {
     });
 
     test('daysBetween не зависит от времени суток', () {
-      expect(daysBetween(DateTime(2026, 9, 22, 23, 50), DateTime(2026, 9, 23)), 1);
+      expect(
+          daysBetween(DateTime(2026, 9, 22, 23, 50), DateTime(2026, 9, 23)), 1);
       expect(daysBetween(DateTime(2026, 9, 22), DateTime(2026, 9, 22, 18)), 0);
     });
   });

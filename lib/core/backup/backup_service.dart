@@ -131,11 +131,34 @@ class BackupService {
     }
 
     final version = data['backupFormatVersion'];
-    if (version is! int || version > _backupFormatVersion) {
+    if (version is! int || version < 1) {
+      throw const BackupFormatException('Неверный формат резервной копии.');
+    }
+    if (version > _backupFormatVersion) {
       throw const BackupFormatException(
         'Эта копия сделана более новой версией приложения. Обновите '
         'приложение и попробуйте снова.',
       );
+    }
+
+    // Отсутствующую таблицу нельзя принимать за пустую: восстановление
+    // заменяет текущую базу целиком. Новые таблицы в старых копиях допустимо
+    // не указывать, но таблицы исходного формата обязательны.
+    const requiredTables = ['lessons', 'substitutions', 'homeworks', 'appMeta'];
+    const optionalTables = ['attendances', 'subjectProfiles'];
+    for (final key in [...requiredTables, ...optionalTables]) {
+      if (!data.containsKey(key) && optionalTables.contains(key)) continue;
+      final rows = data[key];
+      if (rows is! List || rows.any((row) => row is! Map<String, dynamic>)) {
+        throw BackupFormatException(
+            'В резервной копии повреждена таблица «$key».');
+      }
+    }
+    if ((data['settings'] != null &&
+            data['settings'] is! Map<String, dynamic>) ||
+        (data['createdAt'] != null && data['createdAt'] is! String) ||
+        (data['appVersion'] != null && data['appVersion'] is! String)) {
+      throw const BackupFormatException('Повреждены сведения резервной копии.');
     }
 
     return data;
